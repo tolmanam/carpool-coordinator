@@ -1,23 +1,12 @@
-# Matrix-Centric Architecture - Carpool Coordinator
+# Technical Architecture & Design - Carpool Coordinator
 
-This document details the architectural pivot to a **fully decentralized, zero-backend cloud cost, Matrix-based, client-side first architecture** for the **Carpool Coordinator**.
+This document defines the core architecture, decentralized philosophy, and platform constraints of the **Carpool Coordinator** application.
 
 ---
 
 ## 1. Decentralization Philosophy: Why Matrix?
 
-To achieve **zero cloud hosting/database maintenance costs** and maximum privacy, we eliminate the centralized PostgreSQL/Node.js/Go backend server. Instead, we use **Matrix** (an open standard for secure, decentralized, real-time communication) as the virtual backbone for:
-
-* **Identity & Authentication**: Users authenticate with any home-server of choice (e.g., matrix.org, a self-hosted homeserver, or community homeservers) using Matrix credentials. No separate OIDC infrastructure is required!
-* **Group Management & Trust**: Matrix Rooms act as the boundary for "Family Groups." Joining a room represents joining a coordination group. Room power levels manage invite permissions and configuration changes.
-* **State Synchronization**: Matrix State Events (`m.room.state`) are stored and synchronized seamlessly across all homeservers and clients. We can define custom state events (e.g., `org.carpool.family.profile`, `org.carpool.schedules`) to sync configuration.
-* **Real-Time Communication**: Ephemeral location streams and status notifications (sick days, cancellations) are sent as standard Matrix events (`org.carpool.location`, `org.carpool.status`) directly to room participants.
-
----
-
-## 2. Shift to Client-Side Processing
-
-All heavy computational work is offloaded entirely to individual user clients (Mobile App via React Native / Expo):
+To achieve **zero cloud hosting or database maintenance costs** and absolute privacy for families, we eliminate central application servers. Instead, we use **Matrix** (the open standard for secure, decentralized, real-time communication) as our virtual backend.
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────┐
@@ -25,73 +14,142 @@ All heavy computational work is offloaded entirely to individual user clients (M
 │                                                                        │
 │   ┌─────────────────────────┐            ┌─────────────────────────┐   │
 │   │  iCal Schedule Puller   │            │  TSP Route Calculator   │   │
-│   │  (Direct client fetch)  │            │ (In-app Valhalla/OSRM)  │   │
+│   │   (Background Sync &    │            │ (In-app Heuristic TSP + │   │
+│   │   State Coordination)   │            │   Dynamic ETA Engine)   │   │
 │   └─────────────────────────┘            └─────────────────────────┘   │
 │                                                                        │
 │   ┌─────────────────────────┐            ┌─────────────────────────┐   │
 │   │  Local SQLite Storage   │            │    Matrix Client SDK    │   │
-│   │  (WatermelonDB / CRDT)  │            │(Sync / Send Room Events)│   │
+│   │   (expo-sqlite +        │            │ (Sync / Send Room State │   │
+│   │    Drizzle ORM)         │            │    & Message Events)    │   │
 │   └─────────────────────────┘            └─────────────────────────┘   │
 │                                                                        │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │
-                                    │ Matrix Client-Server API
+                                    │ Matrix Client-Server HTTP API / WebSockets
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────┐
-│                          Decentralized Matrix                          │
-│                          Federated Homeservers                         │
+│                        Decentralized Federated                         │
+│                           Matrix Homeservers                           │
 │                     (matrix.org, self-hosted, etc.)                    │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Client Responsibilities:
+### Direct Mapping of Concepts
 
-1. **iCal Fetching & Parsing**: The client app regularly wakes up (or triggers on open) to fetch the configured raw `.ics` feed URLs directly from the Web. It parses the schedule locally and maps them to events.
-2. **Geocoding & Route Optimization**: Rather than querying a central routing server, the client utilizes local routing modules or public, free tier geocoding and routing APIs (or lightweight client-side libraries like `turf.js` for straight-line heuristics/simple TSP).
-3. **Data Storage**: All persistent structures (e.g., local logs, personal configurations, raw calendars) are saved in a local, encrypted SQLite database. Group-level definitions are fetched and synced from the Matrix Room State.
-
----
-
-## 3. Matrix Protocol Mapping
-
-The Carpool Coordinator maps its operational concepts onto native Matrix Room primitives:
-
-| Carpool Concept | Matrix Primitive | Implementation Details |
-|---|---|---|
-| **Family Group / Cluster** | **Matrix Room** | A private, end-to-end encrypted (E2EE) Matrix room. |
-| **Authentication** | **Homeserver Login** | Client logs in to their Matrix homeserver using password or SSO. |
-| **User Identity** | **Matrix ID (`@user:server.org`)**| Unique identification. Display names and avatars are reused. |
-| **Group Profile / Homes** | **Room State Event** | A custom state event `org.carpool.group` containing a JSON dictionary of member home coordinates (optionally encrypted). |
-| **Shared Schedules** | **Room State Event** | A custom state event `org.carpool.schedule` outlining shared regular pickup locations (school, sport arenas). |
-| **Sign-ups / Shifts** | **Room Message Event** | `org.carpool.signup` representing who is driving / riding for a specific date. |
-| **Real-time Live Location**| **Room Ephemeral Event** | Matrix `m.receipt` / `org.carpool.location` custom message streaming coordinates while active. |
-| **Sick/Cancellation Alert**| **Room Message Event** | Standard messaging context `org.carpool.alert` with specific structured details. |
+* **Identity & Authentication**: Users authenticate with any Matrix homeserver using their standard Matrix ID (`@user:server.org`) and credentials (Password or OIDC/SSO). No separate authentication or database server is required.
+* **Family Group / Circle**: Modeled as a private, End-to-End Encrypted (E2EE) Matrix Room. Joining or being invited to a room represents joining a family coordination group.
+* **State Sync**: Shared group profiles (member details, home coordinates) and destination configurations are stored directly in the room as standard **Matrix State Events** (`m.room.state`).
+* **Schedules & Sign-ups**: Shifts and attendance sign-ups are shared as custom Matrix Message Events (`org.carpool.signup`).
+* **Real-Time Coordinates & ETAs**: Streamed during active carpools as ephemeral, high-frequency, low-latency room messages (`org.carpool.location`).
 
 ---
 
-## 4. Addressing Technical Challenges
+## 2. Shift to Client-Side Processing
 
-While this reduces hosting costs to absolute zero, we must solve several constraints inherent in decentralized client-only processing:
+All heavy computational tasks are distributed to individual user devices, eliminating the need for backend servers:
 
-### A. The "Who Calculates the Route?" Coordination Challenge
+1. **Local Storage**: All persistent structures (local user settings, cached family profiles, synced calendars, and offline events) are stored locally in an encrypted SQLite database via `expo-sqlite` and mapped with **Drizzle ORM**.
+2. **Local Route & ETA Solvers**: Driving routes are calculated in the driver's application using client-side Traveling Salesperson Problem (TSP) algorithms.
+3. **iCal Fetching & Syncing**: Native iOS and Android clients fetch external `.ics` feeds directly from calendar hosts, bypassing web browser CORS restrictions.
 
-Because there is no central server to compute optimal routing, a coordination consensus is required:
+---
 
-* **The Solution**: The designated **Driver** for a given schedule/shift performs the calculation.
-* **The Flow**:
-  1. Members publish their availability/signup requests as Matrix events into the room.
-  2. The Driver's app compiles these signups, extracts home locations from the Room State, calculates the optimal route using client-side libraries, and publishes the final schedule/pickup ETAs to the Matrix room as an updated `org.carpool.route` event.
-  3. Other participants' apps listen for this event and render it locally.
+## 3. Distributed Background iCal Coordination
 
-### B. Accessing Raw `.ics` Calendars Behind Firewalls (CORS)
+To keep schedules up to date without a central server or duplicate network calls, the clients coordinate background tasking using a lightweight state-locking protocol:
 
-Clients fetching arbitrary iCal URLs may run into CORS (Cross-Origin Resource Sharing) restrictions on web browsers (though not an issue for native iOS/Android React Native apps).
+```text
+┌────────────────┐         ┌────────────────┐         ┌───────────────────┐
+│  Client App 1  │         │  Matrix Room   │         │ External iCal URL │
+└───────┬────────┘         └───────┬────────┘         └─────────┬─────────┘
+        │                          │                            │
+        │ Wakes up in background   │                            │
+        │                          │                            │
+        ├─────────────────────────>│                            │
+        │ Queries last sync time   │                            │
+        │ (org.carpool.ical_lock)  │                            │
+        │                          │                            │
+        │ [Expired / Needs Sync]   │                            │
+        │                          │                            │
+        ├──────────────────────────┼───────────────────────────>│
+        │                          │                            │ Fetches Raw .ics
+        │                          │<───────────────────────────┤
+        │                          │                            │
+        │ Parses & Detects changes │                            │
+        │                          │                            │
+        ├─────────────────────────>│                            │
+        │ Updates Schedule state   │                            │
+        │ (org.carpool.schedules)  │                            │
+        │                          │                            │
+        ├─────────────────────────>│                            │
+        │ Releases Lock            │                            │
+        │ (org.carpool.ical_lock)  │                            │
+```
 
-* **The Solution**: Native mobile clients execute HTTP requests bypassing CORS. For the web-app companion, users can optionally use public, free proxy bypasses or standard Matrix file uploads (allowing a family to manually upload/attach `.ics` files directly into the Matrix room media repository).
+### The iCal Lock State Protocol
 
-### C. Offline Support & Sync Latency
+To prevent multiple family members' background workers from hammering the same iCal feed simultaneously, the clients use a Matrix State Event `org.carpool.ical_lock` to coordinate:
 
-If some group members are offline, they must not block coordination.
+1. **State Event Structure (`org.carpool.ical_lock`)**:
+   ```json
+   {
+     "last_sync_timestamp": 1698391800000,
+     "synced_by": "@alice:matrix.org",
+     "ical_feed_url": "https://sports-club.org/calendars/u10.ics"
+   }
+   ```
+2. **Background Execution Loop**:
+   * The OS background task runner wakes up the client app (e.g., every 4–6 hours).
+   * The client fetches the current `org.carpool.ical_lock` state event from the Matrix Room.
+   * If `currentTime - last_sync_timestamp` is **less** than the sync interval (e.g., 4 hours), the client immediately goes back to sleep (Task Complete, no work needed).
+   * If the lock has expired, the client:
+     1. Fetches the `.ics` file directly from the internet.
+     2. Parses it locally.
+     3. Checks for new, updated, or canceled events.
+     4. Publishes any delta changes as an updated `org.carpool.schedules` state event (or a series of calendar events).
+     5. Updates the `org.carpool.ical_lock` state event with the new timestamp and its own Matrix ID.
+3. **Matrix Native Push Notifications**: When an updated calendar event or cancelation notice is published to the room, the Matrix homeserver instantly delivers native push notifications (via FCM/APNs) to all other group participants, updating their local offline databases immediately.
 
-* **The Solution**: Matrix stores events on the federated homeservers. Once an offline family returns online, their client automatically performs a standard Matrix `/sync` call to retrieve all updates, re-evaluate schedules, and refresh local databases.
-* Matrix's built-in Conflict Resolution (based on DAG topological sorting and event timestamps) handles concurrent updates to schedules smoothly.
+---
+
+## 4. Real-Time Tracking & Dynamic ETA Calculations
+
+When an active carpool starts, real-time location and dynamic ETA updates are achieved without paid third-party servers:
+
+1. **High-Frequency Ephemeral Location Streaming**:
+   * The driving client streams its current GPS coordinates every 15–30 seconds as standard Matrix room message events of type `org.carpool.location`.
+   * These events are marked with a short Time-To-Live (TTL) or ignored in long-term room history threads to prevent bloating the homeserver storage.
+2. **Client-Side Dynamic ETA Engine**:
+   * The driver's client is responsible for calculating remaining pick-up ETAs.
+   * Using its current coordinates, the remaining waypoint coordinates, and a client-side routing algorithm (or a straight-line Haversine fallback multiplied by a typical local traffic speed multiplier), the driver's client computes the arrival time at each subsequent stop.
+   * The driver's client publishes these computed ETAs directly within the `org.carpool.location` event payload.
+   * **Receiving clients** simply read the pre-computed ETAs from the incoming stream and display them natively. This eliminates the need for every passenger's client to perform continuous routing lookups and keeps coordinate rendering extremely fast and lightweight.
+
+---
+
+## 5. Security & Progressive E2EE Implementation Roadmap
+
+To ensure coding agents succeed without getting blocked by native cryptographic library compile issues, we define a progressive development path:
+
+```text
+┌─────────────────────────┐      ┌─────────────────────────┐      ┌─────────────────────────┐
+│         Phase A         │      │         Phase B         │      │         Phase C         │
+│  Unencrypted Prototype  │ ───> │  Secure Storage & Sync  │ ───> │  Native E2EE Activation  │
+│  Validate client logic,  │      │ Cache room keys, native │      │ Integrate standard Olm/ │
+│  schedules, & navigation│      │ SQLite encryption key   │      │ Megolm room encryption  │
+└─────────────────────────┘      └─────────────────────────┘      └─────────────────────────┘
+```
+
+* **Phase A: Functional Protocol Prototype**: The agent builds the complete application state machines, UI, database sync, and routing engines using unencrypted private Matrix rooms.
+* **Phase B: Secure Storage**: The agent secures the local SQLite database using SQLCipher bindings (`expo-sqlite/sqlcipher`) and secures authentication credentials using `expo-secure-store`.
+* **Phase C: Native E2EE Integration**: The agent enables Room Encryption. By choosing standard Matrix specifications, the native Matrix client libraries automatically handle secure key-sharing (Megolm) and E2EE message parsing.
+
+---
+
+## 6. Target Platforms & Runtime Specifications
+
+* **Primary Runtime**: React Native / Expo.
+* **Native Builds**: Expo Development Builds (`npx expo prebuild`) to support native SQLite (`expo-sqlite`) and secure persistent store layers.
+* **Routing System**: File-based **Expo Router** for screen-to-screen navigation and strict type-safety.
+* **Web Companion Support**: Designed with native mobile first. Web support is relegated to an optional Phase 2, bypassing CORS limitations via Matrix Room Media or lightweight serverless CORS proxies.

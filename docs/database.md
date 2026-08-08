@@ -1,16 +1,15 @@
-# Matrix Event Schemas & Client Storage - Carpool Coordinator
+# Matrix Events & Client SQLite Schemas - Carpool Coordinator
 
-This document details the decentralization of data schemas. Since we do not use a centralized database, all storage is split between **Matrix Room Custom State & Message Events** (for cross-client shared coordination state) and a **Client-Side SQLite Database** (for private/offline local-first indexing).
+This document specifies the exact JSON schemas for custom Matrix events and the corresponding Drizzle ORM schemas for the local-first SQLite database.
 
 ---
 
-## 1. Custom Matrix Events
+## 1. Custom Matrix Events (Namespace: `org.carpool`)
 
-Matrix supports custom extensible JSON events. The namespace `org.carpool` is used for all custom event types.
+All custom events are stored inside the private, encrypted Matrix room representing the coordination group.
 
 ### 1.1. `org.carpool.family.profile` (State Event)
-
-Defines a household profile. Sent as a **State Event** with the state key as the Matrix ID of the family administrator.
+Defines a household's profile. Sent with the state key as the Matrix User ID of the family administrator.
 
 ```json
 {
@@ -40,8 +39,7 @@ Defines a household profile. Sent as a **State Event** with the state key as the
 ```
 
 ### 1.2. `org.carpool.schedules` (State Event)
-
-Published to configure the shared destinations and recurrent iCal links. Sent as a **State Event** with a unique schedule ID as the state key.
+Defines a shared target destination and associated recurrent iCal URL. Sent with a unique schedule ID as the state key.
 
 ```json
 {
@@ -59,9 +57,23 @@ Published to configure the shared destinations and recurrent iCal links. Sent as
 }
 ```
 
-### 1.3. `org.carpool.signup` (Message Event)
+### 1.3. `org.carpool.ical_lock` (State Event)
+Coordinates background task syncing to prevent multiple clients from fetching the same external iCal URL concurrently. Sent with the schedule ID as the state key.
 
-Sent by a parent client to sign up their child as a rider or themselves as a driver for a specific calendar instance.
+```json
+{
+  "type": "org.carpool.ical_lock",
+  "state_key": "sched_soccer_2023",
+  "content": {
+    "last_sync_timestamp": 1698391800000,
+    "synced_by": "@alice:matrix.org",
+    "ical_feed_url": "https://sports-club.org/calendars/u10.ics"
+  }
+}
+```
+
+### 1.4. `org.carpool.signup` (Message Event)
+Sent by a parent to sign up their family members as riders or themselves as drivers for a specific calendar instance.
 
 ```json
 {
@@ -76,9 +88,8 @@ Sent by a parent client to sign up their child as a rider or themselves as a dri
 }
 ```
 
-### 1.4. `org.carpool.route` (Message Event)
-
-Calculated and published by the assigned Driver's client. It calculates the optimal route order and estimated pick-up times for all riders.
+### 1.5. `org.carpool.route` (Message Event)
+Calculated and published by the assigned Driver's client. Outlines the optimal pick-up sequences and planned ETAs.
 
 ```json
 {
@@ -109,46 +120,121 @@ Calculated and published by the assigned Driver's client. It calculates the opti
 }
 ```
 
+### 1.6. `org.carpool.location` (Message Event)
+High-frequency ephemeral coordinate streaming. Contains real-time GPS locations and dynamic calculated ETAs to subsequent stops.
+
+```json
+{
+  "type": "org.carpool.location",
+  "content": {
+    "schedule_id": "sched_soccer_2023",
+    "event_timestamp": 1698393600000,
+    "driver_id": "member_connor_2",
+    "latitude": 34.0210,
+    "longitude": -118.4800,
+    "heading": 180.5,
+    "speed": 11.2,
+    "eta_updates": [
+      {
+        "member_id": "member_smith_1",
+        "estimated_arrival": 1698392405000
+      },
+      {
+        "type": "destination",
+        "estimated_arrival": 1698393610000
+      }
+    ]
+  }
+}
+```
+
 ---
 
-## 2. Client-Side SQLite Database Schema
+## 2. Client-Side SQLite Database Schema (Drizzle ORM)
 
-Each client retains a local cache of the synchronized room events and private local data (e.g., raw calendar feeds they shouldn't publish directly, route options). Below is the recommended SQLite schema.
+Below is the definitive schema for the local-first client-side SQLite database utilizing `expo-sqlite` and `drizzle-orm/sqlite-core`.
 
-### Table: `local_settings`
+```typescript
+import { sqliteTable, text, real, integer, primaryKey } from 'drizzle-orm/sqlite-core';
 
-| Column | Type | Constraints | Description |
-|---|---|---|---|
-| **key** | TEXT | PRIMARY KEY | Setting namespace. |
-| **value** | TEXT | NOT NULL | Serialized setting value. |
+// Local key-value settings store
+export const localSettings = sqliteTable('local_settings', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+});
 
-### Table: `cached_families`
+// Cached family profiles fetched from org.carpool.family.profile state events
+export const cachedFamilies = sqliteTable('cached_families', {
+  matrixId: text('matrix_id').primaryKey(), // Owner matrix username
+  familyName: text('family_name').notNull(),
+  latitude: real('latitude').notNull(),
+  longitude: real('longitude').notNull(),
+  addressText: text('address_text'),
+  lastUpdated: integer('last_updated', { mode: 'timestamp' }).notNull(),
+});
 
-| Column | Type | Constraints | Description |
-|---|---|---|---|
-| **matrix_id** | TEXT | PRIMARY KEY | Matrix ID of the family admin user. |
-| **family_name** | TEXT | NOT NULL | Family display name. |
-| **latitude** | REAL | NOT NULL | Home Latitude. |
-| **longitude** | REAL | NOT NULL | Home Longitude. |
-| **address_text** | TEXT | | Human-readable address. |
+// Individual cached family members
+export const cachedFamilyMembers = sqliteTable('cached_family_members', {
+  memberId: text('member_id').primaryKey(), // Generated member unique identifier
+  matrixId: text('matrix_id')
+    .notNull()
+    .references(() => cachedFamilies.matrixId, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  role: text('role').notNull(), // 'parent' | 'child'
+});
 
-### Table: `cached_family_members`
+// Local cached copy of configured schedules/destinations (from state events)
+export const cachedSchedules = sqliteTable('cached_schedules', {
+  scheduleId: text('schedule_id').primaryKey(),
+  title: text('title').notNull(),
+  icalFeedUrl: text('ical_feed_url'),
+  latitude: real('latitude').notNull(),
+  longitude: real('longitude').notNull(),
+  addressText: text('address_text'),
+});
 
-| Column | Type | Constraints | Description |
-|---|---|---|---|
-| **member_id** | TEXT | PRIMARY KEY | Unique member ID within family. |
-| **matrix_id** | TEXT | REFERENCES `cached_families(matrix_id)` | Owner family. |
-| **name** | TEXT | NOT NULL | Member display name. |
-| **role** | TEXT | NOT NULL | Role (parent, child, etc). |
+// Parsed calendar instances extracted from the fetched iCal feeds
+export const localIcalEvents = sqliteTable('local_ical_events', {
+  id: text('id').primaryKey(), // Unique UID from iCal .ics
+  scheduleId: text('schedule_id')
+    .notNull()
+    .references(() => cachedSchedules.scheduleId, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  startTime: integer('start_time').notNull(), // Unix timestamp (ms)
+  endTime: integer('end_time').notNull(),     // Unix timestamp (ms)
+});
 
-### Table: `local_ical_events`
+// Sign-ups synchronized from org.carpool.signup room messages
+export const cachedSignups = sqliteTable('cached_signups', {
+  id: text('id').primaryKey(), // Concatenation of scheduleId + timestamp + memberId
+  scheduleId: text('schedule_id').notNull(),
+  eventTimestamp: integer('event_timestamp').notNull(), // Matching iCal occurrence
+  memberId: text('member_id').notNull(),
+  role: text('role').notNull(),     // 'rider' | 'driver'
+  status: text('status').notNull(), // 'scheduled' | 'canceled' | 'sick'
+}, (table) => ({
+  pk: primaryKey({ columns: [table.scheduleId, table.eventTimestamp, table.memberId] }),
+}));
 
-Stores events fetched and parsed locally by the client before route mapping is completed.
+// Route structures synchronized from org.carpool.route messages
+export const cachedRoutes = sqliteTable('cached_routes', {
+  id: text('id').primaryKey(), // Concatenation of scheduleId + timestamp
+  scheduleId: text('schedule_id').notNull(),
+  eventTimestamp: integer('event_timestamp').notNull(),
+  driverId: text('driver_id').notNull(),
+  estimatedDeparture: integer('estimated_departure').notNull(),
+  waypointsJson: text('waypoints_json').notNull(), // Serialized waypoint sequence array
+  routePolyline: text('route_polyline'),           // Encoded route polyline
+}, (table) => ({
+  pk: primaryKey({ columns: [table.scheduleId, table.eventTimestamp] }),
+}));
+```
 
-| Column | Type | Constraints | Description |
-|---|---|---|---|
-| **id** | TEXT | PRIMARY KEY | Event UID from `.ics`. |
-| **schedule_id** | TEXT | NOT NULL | References schedule configuration. |
-| **title** | TEXT | NOT NULL | Event title. |
-| **start_time** | INTEGER | NOT NULL | Unix timestamp of start time. |
-| **end_time** | INTEGER | NOT NULL | Unix timestamp of end time. |
+### Schema Synchronisation Flow
+
+1. On App Launch, standard migrations run natively using:
+   ```typescript
+   import { migrate } from 'drizzle-orm/expo-sqlite/migrator';
+   ```
+2. When the Matrix sync engine receives a new state or message event, the client parses the event payload and inserts/upserts the matching record inside the local SQLite database.
+3. The UI queries the SQLite tables reactively using Drizzle query listeners or state hooks, ensuring instant, lag-free rendering of offline schedules.
