@@ -1,5 +1,8 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, FlatList } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { db } from '../../db/client';
+import { cachedSchedules, cachedFamilyMembers } from '../../db/schema';
+import { createCircle, inviteMember } from '../../utils/matrixClient';
 
 interface Circle {
   id: string;
@@ -8,35 +11,98 @@ interface Circle {
 }
 
 export default function CirclesScreen() {
-  const [circles, setCircles] = useState<Circle[]>([
-    { id: '1', name: 'Westside Soccer Family Club', membersCount: 4 },
-    { id: '2', name: 'High School Commute Group', membersCount: 3 },
-  ]);
+  const [loading, setLoading] = useState(true);
+  const [circles, setCircles] = useState<Circle[]>([]);
   const [newCircleName, setNewCircleName] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
+  const [selectedCircleId, setSelectedCircleId] = useState<string | null>(null);
 
-  const handleCreateCircle = () => {
-    if (!newCircleName.trim()) return;
-    const newCircle: Circle = {
-      id: Date.now().toString(),
-      name: newCircleName,
-      membersCount: 1,
-    };
-    setCircles([...circles, newCircle]);
-    setNewCircleName('');
+  const loadData = async () => {
+    try {
+      const schedules = await db.select().from(cachedSchedules).all();
+      const members = await db.select().from(cachedFamilyMembers).all();
+
+      const mappedCircles: Circle[] = schedules.map((sch) => {
+        // Find how many cached family members exist
+        const count = members.length || 1;
+        return {
+          id: sch.scheduleId,
+          name: sch.title,
+          membersCount: count,
+        };
+      });
+
+      setCircles(mappedCircles);
+      if (mappedCircles.length > 0 && !selectedCircleId) {
+        setSelectedCircleId(mappedCircles[0].id);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const handleCreateCircle = async () => {
+    if (!newCircleName.trim()) return;
+    setLoading(true);
+    try {
+      const newSchedId = await createCircle(newCircleName);
+      setSelectedCircleId(newSchedId);
+      setNewCircleName('');
+      await loadData();
+    } catch (e) {
+      console.error(e);
+      setLoading(false);
+    }
+  };
+
+  const handleInviteMember = async () => {
+    if (!inviteEmail.trim() || !selectedCircleId) return;
+    setLoading(true);
+    try {
+      await inviteMember(selectedCircleId, inviteEmail);
+      setInviteEmail('');
+      await loadData();
+    } catch (e) {
+      console.error(e);
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#2563eb" />
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.container}>
       <Text style={styles.sectionTitle}>Your Coordination Circles</Text>
 
       {circles.map((item) => (
-        <View key={item.id} style={styles.circleCard}>
+        <TouchableOpacity
+          key={item.id}
+          style={[
+            styles.circleCard,
+            selectedCircleId === item.id && styles.circleCardSelected,
+          ]}
+          onPress={() => setSelectedCircleId(item.id)}
+        >
           <View>
             <Text style={styles.circleName}>{item.name}</Text>
             <Text style={styles.circleMeta}>{item.membersCount} members • End-to-End Encrypted</Text>
           </View>
-        </View>
+          {selectedCircleId === item.id && (
+            <Text style={styles.activeIndicator}>✓ Selected</Text>
+          )}
+        </TouchableOpacity>
       ))}
 
       <View style={styles.formContainer}>
@@ -60,7 +126,7 @@ export default function CirclesScreen() {
           onChangeText={setInviteEmail}
           placeholder="@username:homeserver.org"
         />
-        <TouchableOpacity style={[styles.button, { backgroundColor: '#10b981' }]} onPress={() => setInviteEmail('')}>
+        <TouchableOpacity style={[styles.button, { backgroundColor: '#10b981' }]} onPress={handleInviteMember}>
           <Text style={styles.buttonText}>Send Matrix Invitation</Text>
         </TouchableOpacity>
       </View>
@@ -73,6 +139,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8fafc',
     padding: 16,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
   },
   sectionTitle: {
     fontSize: 20,
@@ -91,6 +163,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  circleCardSelected: {
+    borderColor: '#2563eb',
+    backgroundColor: '#eff6ff',
+  },
   circleName: {
     fontSize: 16,
     fontWeight: 'bold',
@@ -101,6 +177,11 @@ const styles = StyleSheet.create({
     color: '#10b981',
     fontWeight: '600',
     marginTop: 4,
+  },
+  activeIndicator: {
+    color: '#2563eb',
+    fontWeight: 'bold',
+    fontSize: 12,
   },
   formContainer: {
     backgroundColor: '#fff',

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, Switch } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, Switch, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
+import { authenticateMatrix, getSessionInfo } from '../utils/matrixClient';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -8,11 +9,38 @@ export default function LoginScreen() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isOffline, setIsOffline] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const handleLogin = () => {
-    // Mock successful authentication & save info
-    router.replace('/(tabs)/schedule');
+  useEffect(() => {
+    // Check if user is already logged in
+    getSessionInfo().then((session) => {
+      if (session.isLoggedIn) {
+        router.replace('/(tabs)/schedule');
+      } else {
+        setLoading(false);
+      }
+    });
+  }, []);
+
+  const handleLogin = async () => {
+    if (!username) return;
+    setLoading(true);
+    try {
+      await authenticateMatrix(username, homeserver);
+      router.replace('/(tabs)/schedule');
+    } catch (e) {
+      console.error(e);
+      setLoading(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator size="large" color="#2563eb" />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, isOffline && styles.containerOffline]}>
