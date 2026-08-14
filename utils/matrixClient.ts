@@ -10,6 +10,88 @@ import {
 } from '../db/schema';
 import { eq, and } from 'drizzle-orm';
 import { parseIcalString, IcalOccurrence } from './icalParser';
+import { Waypoint, recalculateWaypointsEta } from './routeOptimizer';
+
+// Shared mock Matrix Room storage to simulate a shared federated Matrix cloud
+export const mockMatrixCloud: {
+  stateEvents: Record<string, Record<string, any>>; // roomId -> { eventType -> content }
+  messages: Record<string, any[]>;                  // roomId -> list of messages
+} = {
+  stateEvents: {},
+  messages: {},
+};
+
+export async function fetchMatrixRoomState(roomId: string, eventType: string): Promise<any> {
+  const roomState = mockMatrixCloud.stateEvents[roomId] || {};
+  return roomState[eventType] || null;
+}
+
+export async function sendMatrixStateEvent(roomId: string, eventType: string, content: any): Promise<void> {
+  if (!mockMatrixCloud.stateEvents[roomId]) {
+    mockMatrixCloud.stateEvents[roomId] = {};
+  }
+  mockMatrixCloud.stateEvents[roomId][eventType] = {
+    type: eventType,
+    state_key: roomId,
+    content,
+  };
+}
+
+export async function sendMatrixRoomMessage(roomId: string, eventType: string, content: any): Promise<void> {
+  if (!mockMatrixCloud.messages[roomId]) {
+    mockMatrixCloud.messages[roomId] = [];
+  }
+  mockMatrixCloud.messages[roomId].push({
+    type: eventType,
+    content,
+    timestamp: Date.now(),
+  });
+}
+
+/**
+ * Executes inside GPS location stream updates on the Driver's phone.
+ * If driver is running behind schedule (> 5 min), sends an org.carpool.alert warning.
+ */
+export async function processActiveGpsTick(
+  currentLocation: { latitude: number; longitude: number },
+  routeWaypoints: Waypoint[],
+  scheduleId: string,
+  eventTimestamp: number
+): Promise<void> {
+  // 1. Compute dynamic ETA changes for subsequent riders locally
+  const nextWaypoints = recalculateWaypointsEta(currentLocation, routeWaypoints);
+
+  // 2. Broadcast coordinates + precalculated ETA updates to Room
+  await sendMatrixRoomMessage(scheduleId, 'org.carpool.location', {
+    schedule_id: scheduleId,
+    event_timestamp: eventTimestamp,
+    latitude: currentLocation.latitude,
+    longitude: currentLocation.longitude,
+    eta_updates: nextWaypoints.map(wp => ({
+      member_id: wp.memberId,
+      type: wp.type,
+      estimated_arrival: wp.estimatedTime,
+    })),
+  });
+
+  // 3. Monitor for delays
+  for (const wp of nextWaypoints) {
+    if (wp.type === 'pickup' && wp.originalScheduledTime && wp.estimatedTime) {
+      const delayMinutes = (wp.estimatedTime - wp.originalScheduledTime) / (60 * 1000);
+
+      // Dispatch room alert automatically if delay exceeds 5 minutes
+      if (delayMinutes > 5) {
+        await sendMatrixRoomMessage(scheduleId, 'org.carpool.alert', {
+          schedule_id: scheduleId,
+          event_timestamp: eventTimestamp,
+          alert_type: 'delay',
+          severity: 'warning',
+          message: `Carpool is running approx ${Math.round(delayMinutes)} mins behind schedule!`,
+        });
+      }
+    }
+  }
+}
 
 // Simulated/Mock Matrix REST helper functions for unencrypted room prototype
 export interface MatrixProfile {
@@ -128,6 +210,81 @@ export async function logoutMatrix(): Promise<void> {
     .onConflictDoUpdate({ target: localSettings.key, set: { value: 'false' } });
 }
 
+// Shared E2EE Key storage to simulate Olm/Megolm secure keys in local device memory
+export const mockE2eeRoomKeys: Record<string, string> = {};
+
+/**
+ * Activates Olm/Megolm E2EE for a specific room (circle)
+ */
+export async function activateRoomE2EE(roomId: string): Promise<void> {
+  // Generate high-entropy room key (Megolm session key)
+  const megolmKey = 'megolm_session_' + Math.random().toString(36).substring(2, 15);
+  mockE2eeRoomKeys[roomId] = megolmKey;
+
+  // Send state event to room activating encryption
+  await sendMatrixStateEvent(roomId, 'm.room.encryption', {
+    algorithm: 'm.megolm.v1.aes-sha2',
+    rotation_period_ms: 604800000,
+  });
+}
+
+/**
+ * Checks if E2EE is active for a room
+ */
+export async function isRoomE2eeActive(roomId: string): Promise<boolean> {
+  const encryptionState = await fetchMatrixRoomState(roomId, 'm.room.encryption');
+  return encryptionState !== null;
+}
+
+/**
+ * Simulated encryption helper: wraps a standard JSON message payload into an encrypted ciphertext envelope
+ */
+export function encryptPayloadE2EE(roomId: string, payload: any): any {
+  const key = mockE2eeRoomKeys[roomId];
+  if (!key) {
+    // If E2EE is not activated or key is missing, return unencrypted
+    return payload;
+  }
+
+  // Simulated ciphertext envelope (resembling Megolm JSON payload)
+  return {
+    algorithm: 'm.megolm.v1.aes-sha2',
+    sender_key: 'sender_key_' + roomId,
+    ciphertext: Buffer.from(JSON.stringify(payload)).toString('base64'), // Base64 encoded payload to simulate ciphertext
+    session_id: key,
+  };
+}
+
+/**
+ * Simulated decryption helper: unwraps an encrypted ciphertext envelope back to original JSON payload
+ */
+export function decryptPayloadE2EE(roomId: string, encryptedPayload: any): any {
+  if (encryptedPayload?.algorithm === 'm.megolm.v1.aes-sha2' && encryptedPayload?.ciphertext) {
+    try {
+      const decodedStr = Buffer.from(encryptedPayload.ciphertext, 'base64').toString('utf-8');
+      return JSON.parse(decodedStr);
+    } catch {
+      return encryptedPayload;
+    }
+  }
+  return encryptedPayload;
+}
+
+/**
+ * Simulated/Mock OIDC/SSO federated Matrix authentication flow.
+ * Redirects visually (conceptually), retrieves secure token, and completes login.
+ */
+export async function authenticateMatrixSSO(homeserver: string): Promise<void> {
+  const mockSsoUsername = 'sso_alice';
+  await authenticateMatrix(mockSsoUsername, homeserver);
+
+  // Set extra setting for SSO token
+  await db
+    .insert(localSettings)
+    .values({ key: 'sso_token', value: 'sso_tok_' + Math.random().toString(36).substring(2, 10) })
+    .onConflictDoUpdate({ target: localSettings.key, set: { value: 'true' } });
+}
+
 /**
  * Creates a new coordination circle (represented by a simulated Matrix room metadata record in the database)
  */
@@ -142,6 +299,9 @@ export async function createCircle(name: string): Promise<string> {
     longitude: -118.4520,
     addressText: 'Clover Park Field 2',
   });
+
+  // Automatically activate Olm/Megolm E2EE for this circle
+  await activateRoomE2EE(scheduleId);
 
   return scheduleId;
 }

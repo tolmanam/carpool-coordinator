@@ -4,6 +4,7 @@ export interface Waypoint {
   latitude: number;
   longitude: number;
   estimatedTime?: number;
+  originalScheduledTime?: number; // Store originally planned time
 }
 
 /**
@@ -96,9 +97,42 @@ export function solveOptimalRoute(
     currentTimestamp = currentTimestamp - travelTimeMs;
 
     startPoint.estimatedTime = Math.round(currentTimestamp);
+    startPoint.originalScheduledTime = startPoint.estimatedTime;
   }
 
   route[route.length - 1].estimatedTime = targetArrivalTime;
+  route[route.length - 1].originalScheduledTime = targetArrivalTime;
 
   return route;
+}
+
+/**
+ * Recalculates remaining route waypoints ETA based on current driver coordinates.
+ */
+export function recalculateWaypointsEta(
+  currentLocation: { latitude: number; longitude: number },
+  routeWaypoints: Waypoint[],
+  averageSpeedKph: number = 30
+): Waypoint[] {
+  if (routeWaypoints.length === 0) return [];
+
+  const updated = JSON.parse(JSON.stringify(routeWaypoints)) as Waypoint[];
+  let currentLoc = { ...currentLocation };
+  let currentTimestamp = Date.now();
+
+  for (let i = 0; i < updated.length; i++) {
+    const wp = updated[i];
+    const distanceKm = calculateHaversineDistance(
+      currentLoc.latitude,
+      currentLoc.longitude,
+      wp.latitude,
+      wp.longitude
+    );
+    const travelTimeMs = (distanceKm / averageSpeedKph) * 60 * 60 * 1000;
+    currentTimestamp = currentTimestamp + travelTimeMs;
+    wp.estimatedTime = Math.round(currentTimestamp);
+    currentLoc = { latitude: wp.latitude, longitude: wp.longitude };
+  }
+
+  return updated;
 }
