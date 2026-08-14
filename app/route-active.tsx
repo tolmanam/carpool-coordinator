@@ -3,7 +3,7 @@ import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { db } from '../db/client';
 import { cachedSchedules, cachedFamilies, cachedFamilyMembers, cachedSignups } from '../db/schema';
-import { getSessionInfo } from '../utils/matrixClient';
+import { getSessionInfo, processActiveGpsTick, mockMatrixCloud } from '../utils/matrixClient';
 import { solveOptimalRoute, Waypoint } from '../utils/routeOptimizer';
 import { eq, and } from 'drizzle-orm';
 
@@ -27,6 +27,62 @@ export default function RouteActiveScreen() {
 
   const [destinationTitle, setDestinationTitle] = useState('Destination');
   const [waypoints, setWaypoints] = useState<UIWaypoint[]>([]);
+  const [activeAlert, setActiveAlert] = useState<string | null>(null);
+
+  // Simulate GPS tick during active drive
+  useEffect(() => {
+    if (activeDrive) {
+      const simulateGpsTick = async () => {
+        const currentLoc = { latitude: 34.0194, longitude: -118.4912 };
+
+        // Create simulated Waypoint list mapping current schedule state
+        const simulatedWaypoints: Waypoint[] = waypoints.map((wp) => {
+          const orig = Date.now() + 10 * 60 * 1000;
+          const est = delayReported ? orig + 10 * 60 * 1000 : orig;
+          return {
+            type: wp.type === 'driver_start' ? 'driver_start' : (wp.type === 'destination' ? 'destination' : 'pickup'),
+            latitude: currentLoc.latitude,
+            longitude: currentLoc.longitude,
+            originalScheduledTime: orig,
+            estimatedTime: est,
+          };
+        });
+
+        await processActiveGpsTick(currentLoc, simulatedWaypoints, scheduleId, eventTimestamp);
+      };
+
+      simulateGpsTick();
+    }
+  }, [activeDrive, delayReported, scheduleId, eventTimestamp, waypoints]);
+
+  // Check for active alert messages in Matrix Room
+  useEffect(() => {
+    const checkAlerts = () => {
+      const roomMsgs = mockMatrixCloud.messages[scheduleId] || [];
+      const latestAlert = [...roomMsgs]
+        .reverse()
+        .find(msg => msg.type === 'org.carpool.alert' && msg.content?.schedule_id === scheduleId);
+      if (latestAlert) {
+        setActiveAlert(latestAlert.content.message);
+      } else {
+        setActiveAlert(null);
+      }
+    };
+
+    checkAlerts();
+    const interval = setInterval(checkAlerts, 2000);
+    return () => clearInterval(interval);
+  }, [scheduleId, delayReported]);
+
+  // Clear alerts when delay is toggled off
+  useEffect(() => {
+    if (!delayReported && mockMatrixCloud.messages[scheduleId]) {
+      mockMatrixCloud.messages[scheduleId] = mockMatrixCloud.messages[scheduleId].filter(
+        msg => msg.type !== 'org.carpool.alert'
+      );
+      setActiveAlert(null);
+    }
+  }, [delayReported, scheduleId]);
 
   useEffect(() => {
     const calculateRoute = async () => {
@@ -197,6 +253,12 @@ export default function RouteActiveScreen() {
             </View>
           )}
         </View>
+
+        {activeAlert && (
+          <View style={styles.alertBanner}>
+            <Text style={styles.alertText}>⚠️ {activeAlert}</Text>
+          </View>
+        )}
 
         <View style={styles.detailsCard}>
           <Text style={styles.cardHeader}>Estimated Arrival: {etaMinutes} minutes</Text>
@@ -386,5 +448,20 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: 'bold',
     fontSize: 15,
+  },
+  alertBanner: {
+    backgroundColor: '#fffbeb',
+    borderColor: '#fef3c7',
+    borderWidth: 1,
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  alertText: {
+    color: '#b45309',
+    fontWeight: 'bold',
+    fontSize: 14,
   },
 });

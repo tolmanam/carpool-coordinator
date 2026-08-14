@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, Switch, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
-import { authenticateMatrix, getSessionInfo } from '../utils/matrixClient';
+import { authenticateMatrix, getSessionInfo, authenticateMatrixSSO } from '../utils/matrixClient';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -27,6 +27,17 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await authenticateMatrix(username, homeserver);
+      router.replace('/(tabs)/schedule');
+    } catch (e) {
+      console.error(e);
+      setLoading(false);
+    }
+  };
+
+  const handleSSOLogin = async () => {
+    setLoading(true);
+    try {
+      await authenticateMatrixSSO(homeserver);
       router.replace('/(tabs)/schedule');
     } catch (e) {
       console.error(e);
@@ -88,6 +99,10 @@ export default function LoginScreen() {
 
         <TouchableOpacity style={styles.button} onPress={handleLogin}>
           <Text style={styles.buttonText}>Sign In with Matrix</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={[styles.button, styles.ssoButton]} onPress={handleSSOLogin}>
+          <Text style={styles.buttonText}>Sign In with SSO / OIDC</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -152,6 +167,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     marginTop: 16,
+  },
+  ssoButton: {
+    backgroundColor: '#0f172a',
+    marginTop: 8,
   },
   buttonText: {
     color: '#fff',
