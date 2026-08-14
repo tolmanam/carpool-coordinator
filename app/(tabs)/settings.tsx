@@ -1,15 +1,91 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
+import { db } from '../../db/client';
+import { cachedFamilies, cachedSchedules } from '../../db/schema';
+import { getSessionInfo, logoutMatrix, syncIcalFeed } from '../../utils/matrixClient';
+import { eq } from 'drizzle-orm';
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const [loading, setLoading] = useState(true);
   const [address, setAddress] = useState('734 Ocean Avenue, Santa Monica, CA');
   const [icalUrl, setIcalUrl] = useState('https://sports-club.org/calendars/u10.ics');
+  const [scheduleId, setScheduleId] = useState('');
+  const [matrixId, setMatrixId] = useState('');
+  const [syncing, setSyncing] = useState(false);
 
-  const handleLogout = () => {
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const session = await getSessionInfo();
+        const userMatrixId = session.username.startsWith('@') ? session.username : `@${session.username}:matrix.org`;
+        setMatrixId(userMatrixId);
+
+        // Fetch family address
+        const family = await db.select().from(cachedFamilies).where(eq(cachedFamilies.matrixId, userMatrixId)).get();
+        if (family?.addressText) {
+          setAddress(family.addressText);
+        }
+
+        // Fetch schedule / iCal URL
+        const schedules = await db.select().from(cachedSchedules).all();
+        if (schedules.length > 0) {
+          setScheduleId(schedules[0].scheduleId);
+          if (schedules[0].icalFeedUrl) {
+            setIcalUrl(schedules[0].icalFeedUrl);
+          }
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSettings();
+  }, []);
+
+  const handleSaveAndSync = async () => {
+    setSyncing(true);
+    try {
+      // 1. Update family profile in SQLite DB
+      if (matrixId) {
+        await db
+          .update(cachedFamilies)
+          .set({ addressText: address, lastUpdated: new Date() })
+          .where(eq(cachedFamilies.matrixId, matrixId));
+      }
+
+      // 2. Update schedule config in SQLite DB
+      if (scheduleId) {
+        await db
+          .update(cachedSchedules)
+          .set({ icalFeedUrl: icalUrl })
+          .where(eq(cachedSchedules.scheduleId, scheduleId));
+
+        // 3. Trigger local fetch & parse synchronization
+        await syncIcalFeed(scheduleId);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    await logoutMatrix();
     router.replace('/');
   };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#2563eb" />
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.container}>
@@ -39,8 +115,12 @@ export default function SettingsScreen() {
           placeholder="https://example.com/calendar.ics"
           autoCapitalize="none"
         />
-        <TouchableOpacity style={styles.syncBtn}>
-          <Text style={styles.syncBtnText}>Trigger Fetch & Distributed Sync</Text>
+        <TouchableOpacity style={styles.syncBtn} onPress={handleSaveAndSync} disabled={syncing}>
+          {syncing ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Text style={styles.syncBtnText}>Trigger Fetch & Distributed Sync</Text>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -56,6 +136,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8fafc',
     padding: 16,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
   },
   sectionTitle: {
     fontSize: 18,
@@ -105,6 +191,8 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',
+    height: 48,
+    justifyContent: 'center',
   },
   syncBtnText: {
     color: '#fff',

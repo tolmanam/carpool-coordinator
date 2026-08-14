@@ -1,21 +1,163 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Switch } from 'react-native';
-import { useRouter } from 'expo-router';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { db } from '../db/client';
+import { cachedSchedules, cachedFamilies, cachedFamilyMembers, cachedSignups } from '../db/schema';
+import { getSessionInfo } from '../utils/matrixClient';
+import { solveOptimalRoute, Waypoint } from '../utils/routeOptimizer';
+import { eq, and } from 'drizzle-orm';
 
-interface Stop {
+interface UIWaypoint {
   name: string;
-  type: string;
-  scheduledTime: string;
-  actualTime: string;
+  type: 'driver_start' | 'pickup' | 'destination';
+  scheduledTimeText: string;
+  etaTimeText: string;
 }
 
 export default function RouteActiveScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
+  const scheduleId = params.scheduleId as string;
+  const eventTimestamp = params.eventTimestamp ? parseInt(params.eventTimestamp as string, 10) : Date.now();
+
+  const [loading, setLoading] = useState(true);
   const [activeDrive, setActiveDrive] = useState(false);
   const [delayReported, setDelayReported] = useState(false);
-
-  // Simple countdown to destination
   const [etaMinutes, setEtaMinutes] = useState(25);
+
+  const [destinationTitle, setDestinationTitle] = useState('Destination');
+  const [waypoints, setWaypoints] = useState<UIWaypoint[]>([]);
+
+  useEffect(() => {
+    const calculateRoute = async () => {
+      try {
+        if (!scheduleId) {
+          setLoading(false);
+          return;
+        }
+
+        // 1. Fetch schedule destination
+        const schedule = await db.select().from(cachedSchedules).where(eq(cachedSchedules.scheduleId, scheduleId)).get();
+        if (!schedule) {
+          setLoading(false);
+          return;
+        }
+        setDestinationTitle(schedule.title);
+
+        const destinationCoords = {
+          latitude: schedule.latitude,
+          longitude: schedule.longitude,
+        };
+
+        // 2. Fetch driver home profile
+        const session = await getSessionInfo();
+        const userMatrixId = session.username.startsWith('@') ? session.username : `@${session.username}:matrix.org`;
+
+        const driverFamily = await db.select().from(cachedFamilies).where(eq(cachedFamilies.matrixId, userMatrixId)).get();
+        const driverHome = {
+          latitude: driverFamily?.latitude || 34.0194,
+          longitude: driverFamily?.longitude || -118.4912,
+          memberId: `parent_${session.username}`,
+        };
+
+        // 3. Fetch active riders for this commute
+        const signups = await db.select().from(cachedSignups).where(
+          and(
+            eq(cachedSignups.scheduleId, scheduleId),
+            eq(cachedSignups.eventTimestamp, eventTimestamp),
+            eq(cachedSignups.role, 'rider'),
+            eq(cachedSignups.status, 'scheduled')
+          )
+        ).all();
+
+        // Map rider IDs to coordinate positions
+        const riderAddresses: Array<{ latitude: number; longitude: number; memberId: string; name: string }> = [];
+
+        const members = await db.select().from(cachedFamilyMembers).all();
+        const families = await db.select().from(cachedFamilies).all();
+
+        for (const s of signups) {
+          const mem = members.find((m) => m.memberId === s.memberId);
+          if (mem) {
+            const fam = families.find((f) => f.matrixId === mem.matrixId);
+            if (fam) {
+              riderAddresses.push({
+                latitude: fam.latitude,
+                longitude: fam.longitude,
+                memberId: mem.memberId,
+                name: mem.name,
+              });
+            }
+          }
+        }
+
+        // If no riders, add a default mock rider address to ensure TSP solves gracefully for preview/tests
+        if (riderAddresses.length === 0) {
+          riderAddresses.push({
+            latitude: 34.0250,
+            longitude: -118.4700,
+            memberId: 'child_mock_connor',
+            name: 'Sarah Connor',
+          });
+        }
+
+        // 4. Run pure Client-Side TSP heuristic
+        const optimalRoute: Waypoint[] = solveOptimalRoute(
+          driverHome,
+          destinationCoords,
+          riderAddresses,
+          eventTimestamp
+        );
+
+        // 5. Map the solver waypoints to UITimeline elements
+        const uiWaypoints: UIWaypoint[] = optimalRoute.map((wp, index) => {
+          let name = '';
+          if (wp.type === 'driver_start') {
+            name = `${index + 1}. Start: Alice (You)`;
+          } else if (wp.type === 'destination') {
+            name = `${index + 1}. Destination: ${schedule.title}`;
+          } else {
+            const riderInfo = riderAddresses.find((r) => r.memberId === wp.memberId);
+            name = `${index + 1}. Pickup: ${riderInfo ? riderInfo.name : 'Rider'}`;
+          }
+
+          const schedTime = wp.estimatedTime ? new Date(wp.estimatedTime) : new Date();
+          const scheduledTimeText = schedTime.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+
+          // Calculate ETA with delay
+          const etaTimeVal = delayReported ? (wp.estimatedTime || 0) + 10 * 60 * 1000 : (wp.estimatedTime || 0);
+          const etaTime = new Date(etaTimeVal);
+          const etaTimeText = etaTime.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+
+          return {
+            name,
+            type: wp.type,
+            scheduledTimeText,
+            etaTimeText,
+          };
+        });
+
+        setWaypoints(uiWaypoints);
+
+        // Compute total ETA in minutes to destination
+        const totalDurationMs = eventTimestamp - (optimalRoute[0].estimatedTime || eventTimestamp);
+        const mins = Math.max(5, Math.round(totalDurationMs / (60 * 1000)));
+        setEtaMinutes(delayReported ? mins + 10 : mins);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    calculateRoute();
+  }, [scheduleId, eventTimestamp, delayReported]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -26,6 +168,14 @@ export default function RouteActiveScreen() {
     }
     return () => clearInterval(interval);
   }, [activeDrive]);
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#2563eb" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -50,25 +200,19 @@ export default function RouteActiveScreen() {
 
         <View style={styles.detailsCard}>
           <Text style={styles.cardHeader}>Estimated Arrival: {etaMinutes} minutes</Text>
-          <Text style={styles.cardSub}>Destination: Clover Park Field 2</Text>
+          <Text style={styles.cardSub}>Destination: {destinationTitle}</Text>
 
           <View style={styles.stopsTimeline}>
-            <View style={styles.stopItem}>
-              <Text style={styles.stopName}>1. Start: Alice (You)</Text>
-              <Text style={styles.stopTime}>Scheduled: 3:45 PM • Actual: 3:45 PM</Text>
-            </View>
-            <View style={styles.stopItem}>
-              <Text style={styles.stopName}>2. Pickup: John Connor</Text>
-              <Text style={styles.stopTime}>Scheduled: 3:52 PM • ETA: 3:55 PM</Text>
-            </View>
-            <View style={styles.stopItem}>
-              <Text style={styles.stopName}>3. Pickup: Sarah Smith</Text>
-              <Text style={styles.stopTime}>Scheduled: 3:56 PM • ETA: 3:59 PM</Text>
-            </View>
-            <View style={styles.stopItem}>
-              <Text style={[styles.stopName, { fontWeight: 'bold' }]}>4. Destination: Clover Park</Text>
-              <Text style={styles.stopTime}>Scheduled: 4:10 PM • ETA: 4:12 PM</Text>
-            </View>
+            {waypoints.map((wp, idx) => (
+              <View key={idx} style={styles.stopItem}>
+                <Text style={[styles.stopName, wp.type === 'destination' && { fontWeight: 'bold' }]}>
+                  {wp.name}
+                </Text>
+                <Text style={styles.stopTime}>
+                  Scheduled: {wp.scheduledTimeText} • ETA: {wp.etaTimeText}
+                </Text>
+              </View>
+            ))}
           </View>
         </View>
 
@@ -97,6 +241,12 @@ export default function RouteActiveScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#f8fafc',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: '#f8fafc',
   },
   header: {
