@@ -36,13 +36,36 @@ An elegant, **fully decentralized, zero-cloud-cost**, offline-first solution for
 
 ---
 
+## 📱 Building & Testing the Android APK
+
+### Automated GitHub Actions CD
+1. **Trigger Manual Build**: Navigate to **Actions** -> **CD - Build Android APK** -> **Run workflow** in GitHub.
+2. **Release Tag Build**: Push a git release tag starting with `v` (e.g. `git tag v1.0.0 && git push origin v1.0.0`).
+3. **Download APK**: Once the workflow completes, download `app-debug-apk` from the workflow run artifacts and install the `app-debug.apk` directly on your Android device.
+
+### Local APK Build
+```bash
+# 1. Install dependencies
+npm install
+
+# 2. Prebuild native Android project
+npx expo prebuild --platform android --no-install
+
+# 3. Compile Debug Android APK
+cd android
+./gradlew assembleDebug
+```
+The generated APK will be located at `android/app/build/outputs/apk/debug/app-debug.apk`.
+
+---
+
 ## 🗺️ Roadmap
 
-- [ ] **Phase 1: Local-First Core**
+- [x] **Phase 1: Local-First Core**
   - Setup React Native / Expo with `expo-sqlite` and local iCal RFC 5545 parser.
-- [ ] **Phase 2: Matrix Integration**
-  - Integrate native Matrix SDK, implementing private room setups, user invitations, and custom state event (`org.carpool.family.profile`, `org.carpool.schedules`) sync.
-- [ ] **Phase 3: Route Optimizer & Scheduler**
-  - Build local client-side route sequence solvers (such as `turf.js` or free Valhalla queries) to arrange pickup times.
-- [ ] **Phase 4: Ephemeral Tracking & Notifications**
-  - Implement real-time coordinate streaming, active notifications, and one-click cancellation/sickness reporting via room messaging.
+- [x] **Phase 2: Matrix Integration**
+  - Integrate Matrix REST API helper, implementing private room setups, user invitations, and custom state event (`org.carpool.family.profile`, `org.carpool.schedules`) sync.
+- [x] **Phase 3: Route Optimizer & Scheduler**
+  - Build local client-side route sequence solvers (greedy TSP solver using Haversine distance) to arrange pickup times.
+- [x] **Phase 4: Ephemeral Tracking & Notifications**
+  - Implement real-time coordinate streaming, active notifications, and dynamic late warnings via Matrix room messaging.
