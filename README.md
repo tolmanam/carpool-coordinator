@@ -18,6 +18,19 @@ An elegant, **fully decentralized, zero-cloud-cost**, offline-first solution for
 
 ---
 
+## 🏗️ Recommended Expo App Templates & Architecture
+
+If you are bootstrapping new projects or expanding this application, standard Expo starter templates provide an excellent foundation rather than starting completely from scratch:
+
+* **`npx create-expo-app@latest --template tabs`** (Recommended)
+  * Pre-configures Expo Router with TypeScript and file-based tab navigation under `app/(tabs)/`, matching the tab layout used in this repository (`schedule.tsx`, `circles.tsx`, `settings.tsx`).
+* **`npx create-expo-app@latest --template blank-typescript`**
+  * A lightweight Expo template with full TypeScript configuration pre-packaged.
+* **`npx create-expo-app@latest -t expo-template-default`**
+  * Includes standard Expo SDK utilities, vector icons (`@expo/vector-icons`), safe area context, and dark/light theme providers.
+
+---
+
 ## ⚡ Quick Start Guide
 
 ### Prerequisites
