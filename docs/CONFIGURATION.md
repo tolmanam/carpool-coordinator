@@ -1,6 +1,21 @@
-# Application Configuration Architecture
+# Application Configuration Architecture & Material Design Template System
 
-This document describes the application configuration settings, system options, profile management, family group configuration, and carpool group administration in Carpool Coordinator.
+This document describes the application configuration settings, system options, profile management, family group configuration, carpool group administration, and the Material Design 3 template architecture in Carpool Coordinator.
+
+---
+
+## Material Design 3 Architecture
+
+The application UI utilizes **React Native Paper** (`react-native-paper`) as the UI template engine for a professional Material Design experience across Android and iOS devices.
+
+* **Root Provider (`app/_layout.tsx`)**: Wraps application screens in `PaperProvider` with a customized `MD3LightTheme` palette matching the brand theme (`#1d4ed8` primary blue, `#0284c7` secondary blue, `#10b981` tertiary green).
+* **Material Components**:
+  * `Card` & `Card.Content` for structured information presentation in schedules, circles, settings, and active routes.
+  * `TextInput` with Material outlined borders and left icons (`server`, `account`, `lock`, `email-plus`, `home-heart`, etc.).
+  * `Button` with filled, outlined, and contained-tonal variants and vector icons.
+  * `Chip` for interactive filter states, role selections, and sign-up toggles.
+  * `SegmentedButtons` for single-choice system toggles (Notification Sounds, Light/Dark/System themes).
+  * `Banner` and `Surface` for offline sync indicators, active tracking alerts, and status elevation.
 
 ---
 

@@ -151,5 +151,6 @@ To ensure coding agents succeed without getting blocked by native cryptographic 
 
 * **Primary Runtime**: React Native / Expo.
 * **Native Builds**: Expo Development Builds (`npx expo prebuild`) to support native SQLite (`expo-sqlite`) and secure persistent store layers.
+* **UI Design Template & Material Components**: Built using **React Native Paper** for Material Design 3 (MD3) components (cards, chips, segmented buttons, banners, surfaces, themed text inputs, and icons) on Android and iOS devices.
 * **Routing System**: File-based **Expo Router** for screen-to-screen navigation and strict type-safety.
 * **Web Companion Support**: Designed with native mobile first. Web support is relegated to an optional Phase 2, bypassing CORS limitations via Matrix Room Media or lightweight serverless CORS proxies.
