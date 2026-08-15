@@ -41,7 +41,7 @@ An elegant, **fully decentralized, zero-cloud-cost**, offline-first solution for
 ### Automated GitHub Actions CD
 1. **Trigger Manual Build**: Navigate to **Actions** -> **CD - Build Android APK** -> **Run workflow** in GitHub.
 2. **Release Tag Build**: Push a git release tag starting with `v` (e.g. `git tag v1.0.0 && git push origin v1.0.0`).
-3. **Download APK**: Once the workflow completes, download `app-debug-apk` from the workflow run artifacts and install the `app-debug.apk` directly on your Android device.
+3. **Download APK**: Once the workflow completes, download `app-release.apk` directly from the published GitHub Release assets or workflow run artifacts, then install it directly on your Android device.
 
 ### Local APK Build
 ```bash
@@ -51,11 +51,11 @@ npm install
 # 2. Prebuild native Android project
 npx expo prebuild --platform android --no-install
 
-# 3. Compile Debug Android APK
+# 3. Compile Release Android APK (Bundles JS code, dependencies, and assets)
 cd android
-./gradlew assembleDebug
+./gradlew assembleRelease
 ```
-The generated APK will be located at `android/app/build/outputs/apk/debug/app-debug.apk`.
+The generated standalone APK will be located at `android/app/build/outputs/apk/release/app-release.apk`.
 
 ---
 
