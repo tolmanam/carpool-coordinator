@@ -58,10 +58,18 @@ export function initDatabaseTables() {
         schedule_id TEXT PRIMARY KEY NOT NULL,
         title TEXT NOT NULL,
         ical_feed_url TEXT,
+        event_sources_json TEXT,
+        owner_id TEXT,
+        participants_json TEXT,
         latitude REAL NOT NULL,
         longitude REAL NOT NULL,
         address_text TEXT
       );
+
+      -- Migration columns for cached_schedules if table already exists
+      try { expoDb.execSync("ALTER TABLE cached_schedules ADD COLUMN event_sources_json TEXT;"); } catch (e) {}
+      try { expoDb.execSync("ALTER TABLE cached_schedules ADD COLUMN owner_id TEXT;"); } catch (e) {}
+      try { expoDb.execSync("ALTER TABLE cached_schedules ADD COLUMN participants_json TEXT;"); } catch (e) {}
 
       CREATE TABLE IF NOT EXISTS local_ical_events (
         id TEXT PRIMARY KEY NOT NULL,

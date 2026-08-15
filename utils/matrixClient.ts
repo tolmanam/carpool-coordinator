@@ -210,6 +210,316 @@ export async function logoutMatrix(): Promise<void> {
     .onConflictDoUpdate({ target: localSettings.key, set: { value: 'false' } });
 }
 
+/**
+ * Re-authenticates with new or updated Matrix credentials.
+ * Wipes cached database tables to prevent cross-account data leaking, while preserving user settings.
+ */
+export async function reauthenticateAndClearCache(
+  username: string,
+  homeserver: string
+): Promise<void> {
+  // Preserve user preferences before wiping cache
+  const notificationSound = await getNotificationSound();
+  const themeMode = await getThemeMode();
+
+  // Clear cached application state tables
+  await db.delete(cachedSignups);
+  await db.delete(cachedRoutes);
+  await db.delete(localIcalEvents);
+  await db.delete(cachedSchedules);
+  await db.delete(cachedFamilyMembers);
+  await db.delete(cachedFamilies);
+
+  // Re-authenticate user
+  await authenticateMatrix(username, homeserver);
+
+  // Restore preserved user preferences
+  if (notificationSound) await setNotificationSound(notificationSound);
+  if (themeMode) await setThemeMode(themeMode);
+}
+
+/**
+ * System Configuration: Notification Sound
+ */
+export async function setNotificationSound(sound: string): Promise<void> {
+  await db
+    .insert(localSettings)
+    .values({ key: 'notification_sound', value: sound })
+    .onConflictDoUpdate({ target: localSettings.key, set: { value: sound } });
+}
+
+export async function getNotificationSound(): Promise<string> {
+  try {
+    const res = await db.select().from(localSettings).where(eq(localSettings.key, 'notification_sound')).get();
+    return res?.value || 'default';
+  } catch {
+    return 'default';
+  }
+}
+
+/**
+ * System Configuration: Dark Mode Theme
+ */
+export async function setThemeMode(theme: 'light' | 'dark' | 'system'): Promise<void> {
+  await db
+    .insert(localSettings)
+    .values({ key: 'theme_mode', value: theme })
+    .onConflictDoUpdate({ target: localSettings.key, set: { value: theme } });
+}
+
+export async function getThemeMode(): Promise<'light' | 'dark' | 'system'> {
+  try {
+    const res = await db.select().from(localSettings).where(eq(localSettings.key, 'theme_mode')).get();
+    return (res?.value as 'light' | 'dark' | 'system') || 'system';
+  } catch {
+    return 'system';
+  }
+}
+
+/**
+ * Profile Configuration: Multi-Select User Profile Roles
+ */
+export async function updateUserProfileRoles(roles: string[]): Promise<void> {
+  const session = await getSessionInfo();
+  if (!session.username) return;
+
+  const sanitizedUser = session.username.startsWith('@') ? session.username : `@${session.username}:matrix.org`;
+  const parentMemberId = `parent_${session.username}`;
+  const rolesJson = JSON.stringify(roles);
+
+  // Update in SQLite
+  await db
+    .insert(cachedFamilyMembers)
+    .values({
+      memberId: parentMemberId,
+      matrixId: sanitizedUser,
+      name: `${session.username.split(':')[0].replace('@', '') || 'User'}`,
+      role: rolesJson,
+    })
+    .onConflictDoUpdate({
+      target: cachedFamilyMembers.memberId,
+      set: { role: rolesJson },
+    });
+
+  // Broadcast state event to Matrix room so roles are synchronized across the family group
+  await sendMatrixStateEvent(sanitizedUser, 'org.carpool.family.profile', {
+    matrix_id: sanitizedUser,
+    roles,
+    last_updated: Date.now(),
+  });
+}
+
+export async function getUserProfileRoles(): Promise<string[]> {
+  const session = await getSessionInfo();
+  if (!session.username) return ['Parent', 'Driver'];
+
+  const parentMemberId = `parent_${session.username}`;
+  try {
+    const res = await db.select().from(cachedFamilyMembers).where(eq(cachedFamilyMembers.memberId, parentMemberId)).get();
+    if (!res?.role) return ['Parent', 'Driver'];
+    if (res.role.startsWith('[')) {
+      return JSON.parse(res.role);
+    }
+    return [res.role];
+  } catch {
+    return ['Parent', 'Driver'];
+  }
+}
+
+export async function isUserParent(): Promise<boolean> {
+  const roles = await getUserProfileRoles();
+  return roles.some((r) => r.toLowerCase() === 'parent');
+}
+
+/**
+ * Family Group Configuration: Manage Family Name & Members
+ */
+export async function updateFamilyName(familyName: string): Promise<void> {
+  const session = await getSessionInfo();
+  if (!session.username) return;
+
+  const sanitizedUser = session.username.startsWith('@') ? session.username : `@${session.username}:matrix.org`;
+
+  await db
+    .update(cachedFamilies)
+    .set({ familyName, lastUpdated: new Date() })
+    .where(eq(cachedFamilies.matrixId, sanitizedUser));
+
+  // Broadcast to Matrix
+  await sendMatrixStateEvent(sanitizedUser, 'org.carpool.family.profile', {
+    matrix_id: sanitizedUser,
+    family_name: familyName,
+    last_updated: Date.now(),
+  });
+}
+
+export async function addFamilyMember(name: string, roles: string[]): Promise<string> {
+  const session = await getSessionInfo();
+  const sanitizedUser = session.username.startsWith('@') ? session.username : `@${session.username}:matrix.org`;
+  const memberId = `mem_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
+  await db.insert(cachedFamilyMembers).values({
+    memberId,
+    matrixId: sanitizedUser,
+    name,
+    role: JSON.stringify(roles),
+  });
+
+  return memberId;
+}
+
+export async function removeFamilyMember(memberId: string): Promise<void> {
+  await db.delete(cachedFamilyMembers).where(eq(cachedFamilyMembers.memberId, memberId));
+}
+
+/**
+ * Carpool Group Configuration: Parent Role Creation, Owner Controls & Multiple Event Sources
+ */
+export async function createCarpoolGroup(name: string, eventSources: string[] = []): Promise<string> {
+  const session = await getSessionInfo();
+  const sanitizedUser = session.username.startsWith('@') ? session.username : `@${session.username}:matrix.org`;
+
+  // Permission check: Only Parents can create carpool groups
+  const isParent = await isUserParent();
+  if (!isParent) {
+    throw new Error('Only users with the Parent role can create Carpool Groups.');
+  }
+
+  const scheduleId = `sched_${Date.now()}`;
+  const primaryFeed = eventSources[0] || '';
+
+  await db.insert(cachedSchedules).values({
+    scheduleId,
+    title: name,
+    icalFeedUrl: primaryFeed,
+    eventSourcesJson: JSON.stringify(eventSources),
+    ownerId: sanitizedUser,
+    participantsJson: JSON.stringify([sanitizedUser]),
+    latitude: 34.0415,
+    longitude: -118.4520,
+    addressText: 'Carpool Group Location',
+  });
+
+  // Activate E2EE
+  await activateRoomE2EE(scheduleId);
+
+  // Broadcast group state event
+  await sendMatrixStateEvent(scheduleId, 'org.carpool.schedule', {
+    schedule_id: scheduleId,
+    title: name,
+    owner_id: sanitizedUser,
+    event_sources: eventSources,
+    participants: [sanitizedUser],
+  });
+
+  return scheduleId;
+}
+
+export async function updateGroupEventSources(
+  scheduleId: string,
+  eventSources: string[]
+): Promise<void> {
+  const session = await getSessionInfo();
+  const sanitizedUser = session.username.startsWith('@') ? session.username : `@${session.username}:matrix.org`;
+
+  const schedule = await db.select().from(cachedSchedules).where(eq(cachedSchedules.scheduleId, scheduleId)).get();
+  if (!schedule) throw new Error('Carpool group not found.');
+
+  // Permission check: Only group owner can edit event sources
+  if (schedule.ownerId && schedule.ownerId !== sanitizedUser) {
+    throw new Error('Only the group owner/manager can edit event sources.');
+  }
+
+  const primaryFeed = eventSources[0] || '';
+
+  await db
+    .update(cachedSchedules)
+    .set({
+      icalFeedUrl: primaryFeed,
+      eventSourcesJson: JSON.stringify(eventSources),
+    })
+    .where(eq(cachedSchedules.scheduleId, scheduleId));
+
+  // Sync events from all sources
+  await syncMultipleIcalFeeds(scheduleId);
+}
+
+export async function addParticipantFamily(scheduleId: string, familyMatrixId: string): Promise<void> {
+  const cleanId = familyMatrixId.startsWith('@') ? familyMatrixId : `@${familyMatrixId}:matrix.org`;
+  const schedule = await db.select().from(cachedSchedules).where(eq(cachedSchedules.scheduleId, scheduleId)).get();
+  if (!schedule) return;
+
+  let currentParticipants: string[] = [];
+  if (schedule.participantsJson) {
+    try { currentParticipants = JSON.parse(schedule.participantsJson); } catch {}
+  }
+
+  if (!currentParticipants.includes(cleanId)) {
+    currentParticipants.push(cleanId);
+    await db
+      .update(cachedSchedules)
+      .set({ participantsJson: JSON.stringify(currentParticipants) })
+      .where(eq(cachedSchedules.scheduleId, scheduleId));
+  }
+
+  await inviteMember(scheduleId, cleanId);
+}
+
+export async function removeParticipantFamily(scheduleId: string, familyMatrixId: string): Promise<void> {
+  const session = await getSessionInfo();
+  const sanitizedUser = session.username.startsWith('@') ? session.username : `@${session.username}:matrix.org`;
+  const cleanId = familyMatrixId.startsWith('@') ? familyMatrixId : `@${familyMatrixId}:matrix.org`;
+
+  const schedule = await db.select().from(cachedSchedules).where(eq(cachedSchedules.scheduleId, scheduleId)).get();
+  if (!schedule) return;
+
+  // Non-owner can remove themselves, owner can remove anyone
+  const isOwner = schedule.ownerId === sanitizedUser;
+  const isSelf = cleanId === sanitizedUser;
+
+  if (!isOwner && !isSelf) {
+    throw new Error('Only group owners or the family itself can remove a participant from a Carpool Group.');
+  }
+
+  let currentParticipants: string[] = [];
+  if (schedule.participantsJson) {
+    try { currentParticipants = JSON.parse(schedule.participantsJson); } catch {}
+  }
+
+  const updatedParticipants = currentParticipants.filter((id) => id !== cleanId);
+
+  await db
+    .update(cachedSchedules)
+    .set({ participantsJson: JSON.stringify(updatedParticipants) })
+    .where(eq(cachedSchedules.scheduleId, scheduleId));
+}
+
+export async function syncMultipleIcalFeeds(scheduleId: string): Promise<void> {
+  const schedule = await db.select().from(cachedSchedules).where(eq(cachedSchedules.scheduleId, scheduleId)).get();
+  if (!schedule) return;
+
+  let sources: string[] = [];
+  if (schedule.eventSourcesJson) {
+    try { sources = JSON.parse(schedule.eventSourcesJson); } catch {}
+  }
+
+  if (sources.length === 0 && schedule.icalFeedUrl) {
+    sources = [schedule.icalFeedUrl];
+  }
+
+  if (sources.length === 0) {
+    await syncIcalFeed(scheduleId);
+    return;
+  }
+
+  for (const url of sources) {
+    if (url) {
+      await db.update(cachedSchedules).set({ icalFeedUrl: url }).where(eq(cachedSchedules.scheduleId, scheduleId));
+      await syncIcalFeed(scheduleId);
+    }
+  }
+}
+
 // Shared E2EE Key storage to simulate Olm/Megolm secure keys in local device memory
 export const mockE2eeRoomKeys: Record<string, string> = {};
 
