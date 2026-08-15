@@ -286,6 +286,104 @@ export async function authenticateMatrixSSO(homeserver: string): Promise<void> {
 }
 
 /**
+ * Marks a Matrix room as dedicated to Carpool Coordinator by sending an org.carpool.config state event.
+ */
+export async function markRoomAsCarpool(roomId: string, appVersion: string = '1.0.0'): Promise<void> {
+  await sendMatrixStateEvent(roomId, 'org.carpool.config', {
+    app: 'carpool-coordinator',
+    version: appVersion,
+    is_carpool_room: true,
+    created_at: Date.now(),
+  });
+}
+
+/**
+ * Checks whether a given Matrix room is intended for the Carpool Coordinator app.
+ * Returns true if the room contains the org.carpool.config state event or known carpool state events.
+ */
+export async function isCarpoolRoom(roomId: string): Promise<boolean> {
+  const configState = await fetchMatrixRoomState(roomId, 'org.carpool.config');
+  if (configState?.content?.is_carpool_room === true || configState?.content?.app === 'carpool-coordinator') {
+    return true;
+  }
+  const scheduleState = await fetchMatrixRoomState(roomId, 'org.carpool.schedules');
+  if (scheduleState) {
+    return true;
+  }
+  const profileState = await fetchMatrixRoomState(roomId, 'org.carpool.family.profile');
+  if (profileState) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Validates whether a Matrix message event is a valid, structured org.carpool.* message payload.
+ * Filters out standard hand-typed chat messages (e.g. m.room.message from Element/Cinny) or malformed events.
+ */
+export function isValidCarpoolMessage(event: any): boolean {
+  if (!event || typeof event !== 'object') {
+    return false;
+  }
+
+  const { type, content } = event;
+  if (!type || typeof type !== 'string' || !content || typeof content !== 'object') {
+    return false;
+  }
+
+  // Reject standard chat messages like m.room.message unless they have a recognized carpool structure
+  if (type === 'm.room.message' && content.msgtype === 'm.text') {
+    return false;
+  }
+
+  // Validate supported org.carpool event types and their required fields
+  switch (type) {
+    case 'org.carpool.signup':
+      return (
+        typeof content.schedule_id === 'string' &&
+        typeof content.event_timestamp === 'number' &&
+        typeof content.member_id === 'string' &&
+        (content.role === 'rider' || content.role === 'driver') &&
+        ['scheduled', 'canceled', 'sick'].includes(content.status)
+      );
+
+    case 'org.carpool.route':
+      return (
+        typeof content.schedule_id === 'string' &&
+        typeof content.event_timestamp === 'number' &&
+        typeof content.driver_id === 'string' &&
+        Array.isArray(content.waypoints)
+      );
+
+    case 'org.carpool.location':
+      return (
+        typeof content.schedule_id === 'string' &&
+        typeof content.latitude === 'number' &&
+        typeof content.longitude === 'number'
+      );
+
+    case 'org.carpool.alert':
+      return (
+        typeof content.schedule_id === 'string' &&
+        typeof content.alert_type === 'string' &&
+        typeof content.message === 'string'
+      );
+
+    default:
+      // Any unrecognized or standard chat message type is filtered out
+      return false;
+  }
+}
+
+/**
+ * Filters a list of Matrix room message events, retaining only valid Carpool protocol messages.
+ */
+export function filterCarpoolMessages(messages: any[]): any[] {
+  if (!Array.isArray(messages)) return [];
+  return messages.filter(isValidCarpoolMessage);
+}
+
+/**
  * Creates a new coordination circle (represented by a simulated Matrix room metadata record in the database)
  */
 export async function createCircle(name: string): Promise<string> {
@@ -302,6 +400,9 @@ export async function createCircle(name: string): Promise<string> {
 
   // Automatically activate Olm/Megolm E2EE for this circle
   await activateRoomE2EE(scheduleId);
+
+  // Mark room as carpool room
+  await markRoomAsCarpool(scheduleId);
 
   return scheduleId;
 }

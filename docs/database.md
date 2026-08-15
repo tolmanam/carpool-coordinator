@@ -8,7 +8,23 @@ This document specifies the exact JSON schemas for custom Matrix events and the 
 
 All custom events are stored inside the private, encrypted Matrix room representing the coordination group.
 
-### 1.1. `org.carpool.family.profile` (State Event)
+### 1.1. `org.carpool.config` (State Event)
+Designates a Matrix room specifically for use with the Carpool Coordinator application. Allows the app to distinguish carpool rooms from general chat rooms created in apps like Element or Cinny.
+
+```json
+{
+  "type": "org.carpool.config",
+  "state_key": "sched_soccer_2023",
+  "content": {
+    "app": "carpool-coordinator",
+    "version": "1.0.0",
+    "is_carpool_room": true,
+    "created_at": 1698391800000
+  }
+}
+```
+
+### 1.2. `org.carpool.family.profile` (State Event)
 Defines a household's profile. Sent with the state key as the Matrix User ID of the family administrator.
 
 ```json
@@ -38,7 +54,7 @@ Defines a household's profile. Sent with the state key as the Matrix User ID of 
 }
 ```
 
-### 1.2. `org.carpool.schedules` (State Event)
+### 1.3. `org.carpool.schedules` (State Event)
 Defines a shared target destination and associated recurrent iCal URL. Sent with a unique schedule ID as the state key.
 
 ```json
@@ -57,7 +73,7 @@ Defines a shared target destination and associated recurrent iCal URL. Sent with
 }
 ```
 
-### 1.3. `org.carpool.ical_lock` (State Event)
+### 1.4. `org.carpool.ical_lock` (State Event)
 Coordinates background task syncing to prevent multiple clients from fetching the same external iCal URL concurrently. Sent with the schedule ID as the state key.
 
 ```json
@@ -72,7 +88,7 @@ Coordinates background task syncing to prevent multiple clients from fetching th
 }
 ```
 
-### 1.4. `org.carpool.signup` (Message Event)
+### 1.5. `org.carpool.signup` (Message Event)
 Sent by a parent to sign up their family members as riders or themselves as drivers for a specific calendar instance.
 
 ```json
@@ -88,7 +104,7 @@ Sent by a parent to sign up their family members as riders or themselves as driv
 }
 ```
 
-### 1.5. `org.carpool.route` (Message Event)
+### 1.6. `org.carpool.route` (Message Event)
 Calculated and published by the assigned Driver's client. Outlines the optimal pick-up sequences and planned ETAs.
 
 ```json
@@ -120,7 +136,7 @@ Calculated and published by the assigned Driver's client. Outlines the optimal p
 }
 ```
 
-### 1.6. `org.carpool.location` (Message Event)
+### 1.7. `org.carpool.location` (Message Event)
 High-frequency ephemeral coordinate streaming. Contains real-time GPS locations and dynamic calculated ETAs to subsequent stops.
 
 ```json
@@ -229,6 +245,16 @@ export const cachedRoutes = sqliteTable('cached_routes', {
   pk: primaryKey({ columns: [table.scheduleId, table.eventTimestamp] }),
 }));
 ```
+
+## 3. Room Identification & Chat App Filtering
+
+Matrix users can log into Carpool Coordinator with the same Matrix account used in standard Matrix clients (e.g. Element, Cinny).
+
+To ensure smooth interoperability:
+1. **Room Identification**: Carpool rooms are tagged with the `org.carpool.config` state event upon creation (`isCarpoolRoom` check). The app uses this marker to distinguish carpool coordination rooms from standard messaging channels.
+2. **Message Validation & Filtering**: External chat applications like Element can view carpool rooms. If a user hand-types standard chat messages (`m.room.message` with `m.text`) or sends invalid event payloads inside a carpool room, the app's message validator (`isValidCarpoolMessage` / `filterCarpoolMessages`) gracefully ignores them, preventing data corruption or crashes.
+
+---
 
 ### Schema Synchronisation Flow
 

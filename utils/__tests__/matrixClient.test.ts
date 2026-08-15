@@ -7,6 +7,10 @@ import {
   registerSignup,
   removeSignup,
   syncIcalFeed,
+  markRoomAsCarpool,
+  isCarpoolRoom,
+  isValidCarpoolMessage,
+  filterCarpoolMessages,
 } from '../matrixClient';
 import { db } from '../../db/client';
 
@@ -160,5 +164,62 @@ END:VCALENDAR`;
     expect(mockDb.values).toHaveBeenCalledWith(expect.objectContaining({
       title: 'Unit Test Soccer Practice',
     }));
+  });
+
+  it('correctly identifies and marks Carpool Matrix rooms', async () => {
+    const roomId = 'room_test_carpool_tag';
+
+    expect(await isCarpoolRoom(roomId)).toBe(false);
+
+    await markRoomAsCarpool(roomId);
+
+    expect(await isCarpoolRoom(roomId)).toBe(true);
+  });
+
+  it('validates structured org.carpool messages and filters out invalid or hand-typed chat messages', () => {
+    const validSignup = {
+      type: 'org.carpool.signup',
+      content: {
+        schedule_id: 'sched_1',
+        event_timestamp: 1698393600000,
+        member_id: 'child_1',
+        role: 'rider',
+        status: 'scheduled',
+      },
+    };
+
+    const validLocation = {
+      type: 'org.carpool.location',
+      content: {
+        schedule_id: 'sched_1',
+        latitude: 34.05,
+        longitude: -118.25,
+      },
+    };
+
+    const handTypedMessage = {
+      type: 'm.room.message',
+      content: {
+        msgtype: 'm.text',
+        body: 'Hello everyone! Is anyone driving today?',
+      },
+    };
+
+    const malformedSignup = {
+      type: 'org.carpool.signup',
+      content: {
+        schedule_id: 'sched_1',
+        // missing event_timestamp and member_id
+      },
+    };
+
+    expect(isValidCarpoolMessage(validSignup)).toBe(true);
+    expect(isValidCarpoolMessage(validLocation)).toBe(true);
+    expect(isValidCarpoolMessage(handTypedMessage)).toBe(false);
+    expect(isValidCarpoolMessage(malformedSignup)).toBe(false);
+
+    const filtered = filterCarpoolMessages([validSignup, handTypedMessage, validLocation, malformedSignup]);
+    expect(filtered).toHaveLength(2);
+    expect(filtered).toEqual([validSignup, validLocation]);
   });
 });
