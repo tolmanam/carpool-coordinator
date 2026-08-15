@@ -1,5 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, ScrollView } from 'react-native';
+import {
+  Text,
+  Card,
+  TextInput,
+  Button,
+  ActivityIndicator,
+  useTheme,
+  Icon,
+} from 'react-native-paper';
 import { db } from '../../db/client';
 import { cachedSchedules, cachedFamilyMembers } from '../../db/schema';
 import { createCircle, inviteMember } from '../../utils/matrixClient';
@@ -11,6 +20,8 @@ interface Circle {
 }
 
 export default function CirclesScreen() {
+  const theme = useTheme();
+
   const [loading, setLoading] = useState(true);
   const [circles, setCircles] = useState<Circle[]>([]);
   const [newCircleName, setNewCircleName] = useState('');
@@ -23,7 +34,6 @@ export default function CirclesScreen() {
       const members = await db.select().from(cachedFamilyMembers).all();
 
       const mappedCircles: Circle[] = schedules.map((sch) => {
-        // Find how many cached family members exist
         const count = members.length || 1;
         return {
           id: sch.scheduleId,
@@ -77,59 +87,99 @@ export default function CirclesScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2563eb" />
+        <ActivityIndicator size="large" animating={true} color={theme.colors.primary} />
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.sectionTitle}>Your Coordination Circles</Text>
+    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+      <Text variant="titleLarge" style={styles.sectionTitle}>
+        Your Coordination Circles
+      </Text>
 
-      {circles.map((item) => (
-        <TouchableOpacity
-          key={item.id}
-          style={[
-            styles.circleCard,
-            selectedCircleId === item.id && styles.circleCardSelected,
-          ]}
-          onPress={() => setSelectedCircleId(item.id)}
-        >
-          <View>
-            <Text style={styles.circleName}>{item.name}</Text>
-            <Text style={styles.circleMeta}>{item.membersCount} members • End-to-End Encrypted</Text>
-          </View>
-          {selectedCircleId === item.id && (
-            <Text style={styles.activeIndicator}>✓ Selected</Text>
-          )}
-        </TouchableOpacity>
-      ))}
+      {circles.map((item) => {
+        const isSelected = selectedCircleId === item.id;
+        return (
+          <Card
+            key={item.id}
+            style={[styles.circleCard, isSelected && styles.circleCardSelected]}
+            mode="elevated"
+            onPress={() => setSelectedCircleId(item.id)}
+          >
+            <Card.Content style={styles.cardContent}>
+              <View style={styles.cardInfo}>
+                <Text variant="titleMedium" style={styles.circleName}>
+                  {item.name}
+                </Text>
 
-      <View style={styles.formContainer}>
-        <Text style={styles.formTitle}>Create New Circle</Text>
-        <TextInput
-          style={styles.input}
-          value={newCircleName}
-          onChangeText={setNewCircleName}
-          placeholder="e.g. Neighborhood Swim Club"
-        />
-        <TouchableOpacity style={styles.button} onPress={handleCreateCircle}>
-          <Text style={styles.buttonText}>Create Circle</Text>
-        </TouchableOpacity>
-      </View>
+                <View style={styles.metaRow}>
+                  <Icon source="shield-check" size={16} color="#10b981" />
+                  <Text variant="bodySmall" style={styles.circleMeta}>
+                    {item.membersCount} members • End-to-End Encrypted
+                  </Text>
+                </View>
+              </View>
 
-      <View style={styles.formContainer}>
-        <Text style={styles.formTitle}>Invite Member to Circle</Text>
-        <TextInput
-          style={styles.input}
-          value={inviteEmail}
-          onChangeText={setInviteEmail}
-          placeholder="@username:homeserver.org"
-        />
-        <TouchableOpacity style={[styles.button, { backgroundColor: '#10b981' }]} onPress={handleInviteMember}>
-          <Text style={styles.buttonText}>Send Matrix Invitation</Text>
-        </TouchableOpacity>
-      </View>
+              {isSelected && (
+                <Text variant="labelMedium" style={styles.activeIndicator}>
+                  ✓ Selected
+                </Text>
+              )}
+            </Card.Content>
+          </Card>
+        );
+      })}
+
+      <Card style={styles.formCard} mode="elevated">
+        <Card.Content style={styles.formContent}>
+          <Text variant="titleMedium" style={styles.formTitle}>
+            Create New Circle
+          </Text>
+          <TextInput
+            label="Circle Name"
+            value={newCircleName}
+            onChangeText={setNewCircleName}
+            placeholder="e.g. Neighborhood Swim Club"
+            mode="outlined"
+            left={<TextInput.Icon icon="account-group" />}
+          />
+          <Button
+            mode="contained"
+            onPress={handleCreateCircle}
+            style={styles.button}
+            icon="plus"
+          >
+            Create Circle
+          </Button>
+        </Card.Content>
+      </Card>
+
+      <Card style={styles.formCard} mode="elevated">
+        <Card.Content style={styles.formContent}>
+          <Text variant="titleMedium" style={styles.formTitle}>
+            Invite Member to Circle
+          </Text>
+          <TextInput
+            label="Matrix ID or Email"
+            value={inviteEmail}
+            onChangeText={setInviteEmail}
+            placeholder="@username:homeserver.org"
+            mode="outlined"
+            autoCapitalize="none"
+            left={<TextInput.Icon icon="email-plus" />}
+          />
+          <Button
+            mode="contained"
+            buttonColor="#10b981"
+            onPress={handleInviteMember}
+            style={styles.button}
+            icon="send"
+          >
+            Send Matrix Invitation
+          </Button>
+        </Card.Content>
+      </Card>
     </ScrollView>
   );
 }
@@ -138,7 +188,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8fafc',
+  },
+  contentContainer: {
     padding: 16,
+    paddingBottom: 32,
   },
   loadingContainer: {
     flex: 1,
@@ -147,74 +200,60 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
   },
   sectionTitle: {
-    fontSize: 20,
     fontWeight: 'bold',
     color: '#0f172a',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   circleCard: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 16,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+  },
+  circleCardSelected: {
+    borderColor: '#2563eb',
+    borderWidth: 1.5,
+    backgroundColor: '#eff6ff',
+  },
+  cardContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  circleCardSelected: {
-    borderColor: '#2563eb',
-    backgroundColor: '#eff6ff',
+  cardInfo: {
+    flex: 1,
   },
   circleName: {
-    fontSize: 16,
     fontWeight: 'bold',
     color: '#1e293b',
   },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
   circleMeta: {
-    fontSize: 12,
     color: '#10b981',
     fontWeight: '600',
-    marginTop: 4,
   },
   activeIndicator: {
     color: '#2563eb',
     fontWeight: 'bold',
-    fontSize: 12,
   },
-  formContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    marginTop: 24,
+  formCard: {
+    marginTop: 16,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+  },
+  formContent: {
+    gap: 12,
   },
   formTitle: {
-    fontSize: 16,
     fontWeight: 'bold',
     color: '#1e293b',
-    marginBottom: 12,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 14,
-    backgroundColor: '#f8fafc',
-    marginBottom: 12,
   },
   button: {
-    backgroundColor: '#2563eb',
-    padding: 12,
     borderRadius: 8,
-    alignItems: 'center',
-  },
-  buttonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 14,
+    marginTop: 4,
   },
 });

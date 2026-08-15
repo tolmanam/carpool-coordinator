@@ -1,10 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, ScrollView } from 'react-native';
+import {
+  Text,
+  Card,
+  Button,
+  Chip,
+  ActivityIndicator,
+  Banner,
+  useTheme,
+  Divider,
+  Icon,
+} from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { db } from '../../db/client';
 import { localIcalEvents, cachedSignups, cachedFamilyMembers, cachedSchedules } from '../../db/schema';
 import { getSessionInfo, registerSignup, removeSignup, syncIcalFeed } from '../../utils/matrixClient';
-import { eq, and } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
 interface UIOccurrence {
   id: string;
@@ -21,6 +32,8 @@ interface UIOccurrence {
 
 export default function ScheduleScreen() {
   const router = useRouter();
+  const theme = useTheme();
+
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState<UIOccurrence[]>([]);
   const [username, setUsername] = useState('');
@@ -31,10 +44,8 @@ export default function ScheduleScreen() {
       const session = await getSessionInfo();
       setUsername(session.username);
 
-      // Find first schedule or seed one if empty so there is always a valid demo schedule
       let allSchedules = await db.select().from(cachedSchedules).all();
       if (allSchedules.length === 0) {
-        // Seed default schedule/circle
         await db.insert(cachedSchedules).values({
           scheduleId: 'sched_soccer_practice',
           title: 'Westside Soccer Family Club',
@@ -49,14 +60,12 @@ export default function ScheduleScreen() {
       const activeScheduleId = allSchedules[0].scheduleId;
       setScheduleId(activeScheduleId);
 
-      // Trigger standard local iCal sync so there are some events to display
       let allIcalEvents = await db.select().from(localIcalEvents).where(eq(localIcalEvents.scheduleId, activeScheduleId)).all();
       if (allIcalEvents.length === 0) {
         await syncIcalFeed(activeScheduleId);
         allIcalEvents = await db.select().from(localIcalEvents).where(eq(localIcalEvents.scheduleId, activeScheduleId)).all();
       }
 
-      // Query family members to map IDs to actual names
       const allMembers = await db.select().from(cachedFamilyMembers).all();
       const parentMember = allMembers.find((m) => m.role === 'parent');
       const childMember = allMembers.find((m) => m.role === 'child');
@@ -64,7 +73,6 @@ export default function ScheduleScreen() {
       const parentId = parentMember?.memberId || `parent_${session.username}`;
       const childId = childMember?.memberId || `child_${session.username}`;
 
-      // Query all signups for this schedule
       const allSignups = await db.select().from(cachedSignups).where(eq(cachedSignups.scheduleId, activeScheduleId)).all();
 
       const mappedEvents: UIOccurrence[] = allIcalEvents.map((evt) => {
@@ -83,10 +91,8 @@ export default function ScheduleScreen() {
           minute: '2-digit',
         })}`;
 
-        // Filter signups matching this occurrence timestamp
         const matchedSignups = allSignups.filter((s) => s.eventTimestamp === evt.startTime);
 
-        // Find driver
         const driverSignup = matchedSignups.find((s) => s.role === 'driver' && s.status === 'scheduled');
         let driverName = null;
         if (driverSignup) {
@@ -98,7 +104,6 @@ export default function ScheduleScreen() {
           }
         }
 
-        // Find riders
         const riderSignups = matchedSignups.filter((s) => s.role === 'rider' && s.status === 'scheduled');
         const ridersNames = riderSignups.map((rs) => {
           if (rs.memberId === childId) {
@@ -108,7 +113,6 @@ export default function ScheduleScreen() {
           return m ? m.name : 'Unknown Rider';
         });
 
-        // Determine logged in user sign up role
         let userRole: 'rider' | 'driver' | null = null;
         if (matchedSignups.some((s) => s.memberId === childId && s.role === 'rider' && s.status === 'scheduled')) {
           userRole = 'rider';
@@ -130,7 +134,6 @@ export default function ScheduleScreen() {
         };
       });
 
-      // Sort chronological
       mappedEvents.sort((a, b) => a.timestamp - b.timestamp);
       setEvents(mappedEvents);
     } catch (e) {
@@ -145,7 +148,6 @@ export default function ScheduleScreen() {
   }, []);
 
   const toggleRide = async (event: UIOccurrence) => {
-    // Optimistic local state update
     setEvents((prev) =>
       prev.map((e) => {
         if (e.id !== event.id) return e;
@@ -161,11 +163,9 @@ export default function ScheduleScreen() {
       })
     );
 
-    // Persist to local database
     if (event.userRole === 'rider') {
       await removeSignup(event.scheduleId, event.timestamp, event.riderMemberId);
     } else {
-      // Remove driving if any, then register ride
       await removeSignup(event.scheduleId, event.timestamp, event.driverMemberId);
       await registerSignup({
         scheduleId: event.scheduleId,
@@ -175,12 +175,10 @@ export default function ScheduleScreen() {
         status: 'scheduled',
       });
     }
-    // Reload full database data
     await loadData();
   };
 
   const toggleDrive = async (event: UIOccurrence) => {
-    // Optimistic local state update
     setEvents((prev) =>
       prev.map((e) => {
         if (e.id !== event.id) return e;
@@ -194,11 +192,9 @@ export default function ScheduleScreen() {
       })
     );
 
-    // Persist to local database
     if (event.userRole === 'driver') {
       await removeSignup(event.scheduleId, event.timestamp, event.driverMemberId);
     } else {
-      // Remove ride if any, then register drive
       await removeSignup(event.scheduleId, event.timestamp, event.riderMemberId);
       await registerSignup({
         scheduleId: event.scheduleId,
@@ -208,91 +204,105 @@ export default function ScheduleScreen() {
         status: 'scheduled',
       });
     }
-    // Reload full database data
     await loadData();
   };
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2563eb" />
+        <ActivityIndicator size="large" animating={true} color={theme.colors.primary} />
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.offlineBanner}>
-        <Text style={styles.offlineText}>✓ Local Database Synced Off-line</Text>
-      </View>
+    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+      <Banner
+        visible={true}
+        icon="check-circle-outline"
+        style={styles.banner}
+      >
+        Local Database Synced Offline
+      </Banner>
 
-      <Text style={styles.sectionHeader}>Upcoming Commutes</Text>
+      <Text variant="titleLarge" style={styles.sectionHeader}>
+        Upcoming Commutes
+      </Text>
 
       {events.map((event) => (
-        <View key={event.id} style={styles.card}>
-          <Text style={styles.eventTitle}>{event.title}</Text>
-          <Text style={styles.eventTime}>{event.timeText}</Text>
-
-          <View style={styles.participantSection}>
-            <Text style={styles.subLabel}>
-              Driver: <Text style={styles.val}>{event.driverName || 'No driver assigned yet'}</Text>
+        <Card key={event.id} style={styles.card} mode="elevated">
+          <Card.Content>
+            <Text variant="titleMedium" style={styles.eventTitle}>
+              {event.title}
             </Text>
-            <Text style={styles.subLabel}>
-              Riders:{' '}
-              <Text style={styles.val}>
-                {event.ridersNames.length > 0 ? event.ridersNames.join(', ') : 'No riders registered'}
-              </Text>
+            <Text variant="bodyMedium" style={styles.eventTime}>
+              {event.timeText}
             </Text>
-          </View>
 
-          <View style={styles.buttonRow}>
-            <TouchableOpacity
-              style={[
-                styles.actionBtn,
-                event.userRole === 'rider' ? styles.btnActive : styles.btnInactive,
-              ]}
-              onPress={() => toggleRide(event)}
-            >
-              <Text
-                style={[
-                  styles.btnText,
-                  event.userRole === 'rider' ? styles.textActive : styles.textInactive,
-                ]}
+            <Divider style={styles.divider} />
+
+            <View style={styles.participantSection}>
+              <View style={styles.infoRow}>
+                <Icon source="car" size={18} color={theme.colors.primary} />
+                <Text variant="bodyMedium" style={styles.subLabel}>
+                  Driver:{' '}
+                  <Text variant="bodyMedium" style={styles.val}>
+                    {event.driverName || 'No driver assigned yet'}
+                  </Text>
+                </Text>
+              </View>
+
+              <View style={styles.infoRow}>
+                <Icon source="account-group" size={18} color={theme.colors.secondary} />
+                <Text variant="bodyMedium" style={styles.subLabel}>
+                  Riders:{' '}
+                  <Text variant="bodyMedium" style={styles.val}>
+                    {event.ridersNames.length > 0 ? event.ridersNames.join(', ') : 'No riders registered'}
+                  </Text>
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.chipRow}>
+              <Chip
+                selected={event.userRole === 'rider'}
+                onPress={() => toggleRide(event)}
+                icon={event.userRole === 'rider' ? 'check' : 'human-child'}
+                mode="outlined"
+                style={styles.chip}
               >
-                {event.userRole === 'rider' ? '✓ Registered' : 'Ride'}
-              </Text>
-            </TouchableOpacity>
+                {event.userRole === 'rider' ? 'Registered Ride' : 'Ride'}
+              </Chip>
 
-            <TouchableOpacity
-              style={[
-                styles.actionBtn,
-                event.userRole === 'driver' ? styles.btnActive : styles.btnInactive,
-              ]}
-              onPress={() => toggleDrive(event)}
-            >
-              <Text
-                style={[
-                  styles.btnText,
-                  event.userRole === 'driver' ? styles.textActive : styles.textInactive,
-                ]}
+              <Chip
+                selected={event.userRole === 'driver'}
+                onPress={() => toggleDrive(event)}
+                icon={event.userRole === 'driver' ? 'check' : 'steering'}
+                mode="outlined"
+                style={styles.chip}
               >
-                {event.userRole === 'driver' ? '✓ Driving' : 'Drive'}
-              </Text>
-            </TouchableOpacity>
-          </View>
+                {event.userRole === 'driver' ? 'Driving Route' : 'Drive'}
+              </Chip>
+            </View>
 
-          {event.userRole === 'driver' && (
-            <TouchableOpacity
-              style={styles.startDriveBtn}
-              onPress={() => router.push({
-                pathname: '/route-active',
-                params: { scheduleId: event.scheduleId, eventTimestamp: event.timestamp.toString() }
-              })}
-            >
-              <Text style={styles.startDriveBtnText}>Start Driving Route</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+            {event.userRole === 'driver' && (
+              <Button
+                mode="contained"
+                buttonColor="#10b981"
+                icon="navigation"
+                style={styles.startDriveBtn}
+                onPress={() =>
+                  router.push({
+                    pathname: '/route-active',
+                    params: { scheduleId: event.scheduleId, eventTimestamp: event.timestamp.toString() },
+                  })
+                }
+              >
+                Start Driving Route
+              </Button>
+            )}
+          </Card.Content>
+        </Card>
       ))}
     </ScrollView>
   );
@@ -302,7 +312,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8fafc',
+  },
+  contentContainer: {
     padding: 16,
+    paddingBottom: 32,
   },
   loadingContainer: {
     flex: 1,
@@ -310,59 +323,45 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#f8fafc',
   },
-  offlineBanner: {
+  banner: {
     backgroundColor: '#ecfdf5',
-    borderWidth: 1,
-    borderColor: '#a7f3d0',
     borderRadius: 8,
-    padding: 12,
-    marginBottom: 20,
-    alignItems: 'center',
-  },
-  offlineText: {
-    color: '#065f46',
-    fontWeight: '600',
-    fontSize: 14,
+    marginBottom: 16,
   },
   sectionHeader: {
-    fontSize: 20,
     fontWeight: 'bold',
     color: '#0f172a',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
     marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
   },
   eventTitle: {
-    fontSize: 18,
     fontWeight: 'bold',
     color: '#1e293b',
   },
   eventTime: {
-    fontSize: 14,
     color: '#64748b',
-    marginTop: 4,
-    marginBottom: 12,
+    marginTop: 2,
+  },
+  divider: {
+    marginVertical: 12,
   },
   participantSection: {
     backgroundColor: '#f1f5f9',
     borderRadius: 8,
     padding: 12,
-    gap: 6,
-    marginBottom: 16,
+    gap: 8,
+    marginBottom: 12,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   subLabel: {
-    fontSize: 13,
     fontWeight: '600',
     color: '#475569',
   },
@@ -370,45 +369,15 @@ const styles = StyleSheet.create({
     fontWeight: 'normal',
     color: '#1e293b',
   },
-  buttonRow: {
+  chipRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 8,
   },
-  actionBtn: {
+  chip: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    borderWidth: 1,
-  },
-  btnActive: {
-    backgroundColor: '#dbeafe',
-    borderColor: '#93c5fd',
-  },
-  btnInactive: {
-    backgroundColor: '#fff',
-    borderColor: '#cbd5e1',
-  },
-  btnText: {
-    fontWeight: 'bold',
-    fontSize: 14,
-  },
-  textActive: {
-    color: '#1d4ed8',
-  },
-  textInactive: {
-    color: '#475569',
   },
   startDriveBtn: {
-    backgroundColor: '#10b981',
-    padding: 14,
+    marginTop: 12,
     borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  startDriveBtnText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 15,
   },
 });

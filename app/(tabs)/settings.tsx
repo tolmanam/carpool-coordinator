@@ -1,14 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
-  Text,
   View,
   ScrollView,
-  TextInput,
-  TouchableOpacity,
-  ActivityIndicator,
   Alert,
 } from 'react-native';
+import {
+  Text,
+  Card,
+  TextInput,
+  Button,
+  Chip,
+  ActivityIndicator,
+  SegmentedButtons,
+  IconButton,
+  useTheme,
+  Divider,
+  Icon,
+} from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { db } from '../../db/client';
 import { cachedFamilies, cachedFamilyMembers, cachedSchedules } from '../../db/schema';
@@ -29,12 +38,13 @@ import {
   updateGroupEventSources,
   addParticipantFamily,
   removeParticipantFamily,
-  syncMultipleIcalFeeds,
 } from '../../utils/matrixClient';
 import { eq } from 'drizzle-orm';
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const theme = useTheme();
+
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
 
@@ -77,8 +87,8 @@ export default function SettingsScreen() {
       // System Settings
       const sound = await getNotificationSound();
       setNotificationSoundState(sound);
-      const theme = await getThemeMode();
-      setThemeModeState(theme);
+      const thm = await getThemeMode();
+      setThemeModeState(thm);
 
       // Profile Roles
       const roles = await getUserProfileRoles();
@@ -139,9 +149,9 @@ export default function SettingsScreen() {
     await setNotificationSound(sound);
   };
 
-  const handleSaveTheme = async (theme: 'light' | 'dark' | 'system') => {
-    setThemeModeState(theme);
-    await setThemeMode(theme);
+  const handleSaveTheme = async (thm: 'light' | 'dark' | 'system') => {
+    setThemeModeState(thm);
+    await setThemeMode(thm);
   };
 
   // Profile Config Handlers
@@ -294,316 +304,391 @@ export default function SettingsScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2563eb" />
+        <ActivityIndicator size="large" animating={true} color={theme.colors.primary} />
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
       {/* 1. System Configuration */}
-      <Text style={styles.sectionTitle}>1. System Configuration</Text>
-      <View style={styles.section}>
-        <Text style={styles.label}>Matrix Username</Text>
-        <TextInput
-          style={styles.input}
-          value={username}
-          onChangeText={setUsername}
-          placeholder="@username:matrix.org"
-          autoCapitalize="none"
-        />
+      <Text variant="titleMedium" style={styles.sectionTitle}>
+        1. System Configuration
+      </Text>
+      <Card style={styles.card} mode="elevated">
+        <Card.Content style={styles.cardGap}>
+          <TextInput
+            label="Matrix Username"
+            value={username}
+            onChangeText={setUsername}
+            placeholder="@username:matrix.org"
+            mode="outlined"
+            autoCapitalize="none"
+            left={<TextInput.Icon icon="account" />}
+          />
 
-        <Text style={styles.label}>Matrix Homeserver URL</Text>
-        <TextInput
-          style={styles.input}
-          value={homeserver}
-          onChangeText={setHomeserver}
-          placeholder="https://matrix.org"
-          autoCapitalize="none"
-        />
+          <TextInput
+            label="Matrix Homeserver URL"
+            value={homeserver}
+            onChangeText={setHomeserver}
+            placeholder="https://matrix.org"
+            mode="outlined"
+            autoCapitalize="none"
+            left={<TextInput.Icon icon="server" />}
+          />
 
-        <TouchableOpacity
-          style={styles.primaryBtn}
-          onPress={handleReauthenticate}
-          disabled={processing}
-        >
-          {processing ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <Text style={styles.primaryBtnText}>Re-authenticate Matrix & Clear Cache</Text>
-          )}
-        </TouchableOpacity>
+          <Button
+            mode="contained"
+            onPress={handleReauthenticate}
+            loading={processing}
+            disabled={processing}
+            icon="sync"
+            style={styles.button}
+          >
+            Re-authenticate Matrix & Clear Cache
+          </Button>
 
-        <Text style={[styles.label, { marginTop: 16 }]}>Notification Sound</Text>
-        <View style={styles.rowSelector}>
-          {['default', 'chime', 'bell', 'mute'].map((snd) => (
-            <TouchableOpacity
-              key={snd}
-              style={[
-                styles.chip,
-                notificationSound === snd && styles.chipActive,
-              ]}
-              onPress={() => handleSaveSound(snd)}
-            >
-              <Text
-                style={[
-                  styles.chipText,
-                  notificationSound === snd && styles.chipTextActive,
-                ]}
-              >
-                {snd.toUpperCase()}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+          <Divider style={styles.divider} />
 
-        <Text style={[styles.label, { marginTop: 16 }]}>Dark Mode / Theme</Text>
-        <View style={styles.rowSelector}>
-          {(['light', 'dark', 'system'] as const).map((thm) => (
-            <TouchableOpacity
-              key={thm}
-              style={[
-                styles.chip,
-                themeMode === thm && styles.chipActive,
-              ]}
-              onPress={() => handleSaveTheme(thm)}
-            >
-              <Text
-                style={[
-                  styles.chipText,
-                  themeMode === thm && styles.chipTextActive,
-                ]}
-              >
-                {thm.toUpperCase()}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
+          <Text variant="labelLarge" style={styles.subTitle}>
+            Notification Sound
+          </Text>
+          <SegmentedButtons
+            value={notificationSound}
+            onValueChange={handleSaveSound}
+            buttons={[
+              { value: 'default', label: 'Default' },
+              { value: 'chime', label: 'Chime' },
+              { value: 'bell', label: 'Bell' },
+              { value: 'mute', label: 'Mute' },
+            ]}
+          />
+
+          <Text variant="labelLarge" style={[styles.subTitle, { marginTop: 8 }]}>
+            Dark Mode / Theme
+          </Text>
+          <SegmentedButtons
+            value={themeMode}
+            onValueChange={(val) => handleSaveTheme(val as any)}
+            buttons={[
+              { value: 'light', label: 'Light' },
+              { value: 'dark', label: 'Dark' },
+              { value: 'system', label: 'System' },
+            ]}
+          />
+        </Card.Content>
+      </Card>
 
       {/* 2. Profile Configuration */}
-      <Text style={styles.sectionTitle}>2. Profile Configuration</Text>
-      <View style={styles.section}>
-        <Text style={styles.label}>My Roles (Multi-Select)</Text>
-        <Text style={styles.subLabel}>
-          Roles are synchronized to Matrix and visible to your family and carpool groups.
-        </Text>
+      <Text variant="titleMedium" style={styles.sectionTitle}>
+        2. Profile Configuration
+      </Text>
+      <Card style={styles.card} mode="elevated">
+        <Card.Content style={styles.cardGap}>
+          <Text variant="labelLarge" style={styles.subTitle}>
+            My Roles (Multi-Select)
+          </Text>
+          <Text variant="bodySmall" style={styles.subLabel}>
+            Roles are synchronized to Matrix and visible to your family and carpool groups.
+          </Text>
 
-        <View style={styles.rowSelector}>
-          {['Parent', 'Driver', 'Participant'].map((role) => {
-            const active = userRoles.includes(role);
-            return (
-              <TouchableOpacity
-                key={role}
-                style={[styles.chip, active && styles.chipActive]}
-                onPress={() => toggleUserRole(role)}
-              >
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                  {active ? `✓ ${role}` : role}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </View>
+          <View style={styles.chipRow}>
+            {['Parent', 'Driver', 'Participant'].map((role) => {
+              const active = userRoles.includes(role);
+              return (
+                <Chip
+                  key={role}
+                  selected={active}
+                  onPress={() => toggleUserRole(role)}
+                  icon={active ? 'check' : 'account-outline'}
+                  mode="outlined"
+                  style={styles.chip}
+                >
+                  {role}
+                </Chip>
+              );
+            })}
+          </View>
+        </Card.Content>
+      </Card>
 
       {/* 3. Family Group Configuration */}
-      <Text style={styles.sectionTitle}>3. Family Group Configuration</Text>
-      <View style={styles.section}>
-        <Text style={styles.label}>Family Name</Text>
-        <TextInput
-          style={styles.input}
-          value={familyName}
-          onChangeText={setFamilyName}
-          placeholder="e.g. The Smith Family"
-        />
-        <TouchableOpacity style={styles.secondaryBtn} onPress={handleSaveFamilyName}>
-          <Text style={styles.secondaryBtnText}>Save Family Name</Text>
-        </TouchableOpacity>
+      <Text variant="titleMedium" style={styles.sectionTitle}>
+        3. Family Group Configuration
+      </Text>
+      <Card style={styles.card} mode="elevated">
+        <Card.Content style={styles.cardGap}>
+          <TextInput
+            label="Family Name"
+            value={familyName}
+            onChangeText={setFamilyName}
+            placeholder="e.g. The Smith Family"
+            mode="outlined"
+            left={<TextInput.Icon icon="home-heart" />}
+          />
+          <Button
+            mode="outlined"
+            onPress={handleSaveFamilyName}
+            icon="content-save"
+            style={styles.button}
+          >
+            Save Family Name
+          </Button>
 
-        <Text style={[styles.label, { marginTop: 16 }]}>Family Members</Text>
-        {members.map((m) => {
-          let rolesStr = m.role;
-          if (rolesStr.startsWith('[')) {
-            try {
-              rolesStr = JSON.parse(rolesStr).join(', ');
-            } catch {}
-          }
-          return (
-            <View key={m.memberId} style={styles.memberRow}>
-              <View>
-                <Text style={styles.memberName}>{m.name}</Text>
-                <Text style={styles.memberRole}>Roles: {rolesStr}</Text>
-              </View>
-              <TouchableOpacity
-                style={styles.deleteBtn}
-                onPress={() => handleRemoveMember(m.memberId)}
-              >
-                <Text style={styles.deleteBtnText}>Remove</Text>
-              </TouchableOpacity>
-            </View>
-          );
-        })}
+          <Divider style={styles.divider} />
 
-        <Text style={[styles.label, { marginTop: 16 }]}>Add Family Member</Text>
-        <TextInput
-          style={styles.input}
-          value={newMemberName}
-          onChangeText={setNewMemberName}
-          placeholder="Member Name (e.g. Sarah)"
-        />
-        <Text style={styles.subLabel}>Assign Roles:</Text>
-        <View style={styles.rowSelector}>
-          {['Parent', 'Driver', 'Participant'].map((role) => {
-            const active = newMemberRoles.includes(role);
+          <Text variant="labelLarge" style={styles.subTitle}>
+            Family Members
+          </Text>
+          {members.map((m) => {
+            let rolesStr = m.role;
+            if (rolesStr.startsWith('[')) {
+              try {
+                rolesStr = JSON.parse(rolesStr).join(', ');
+              } catch {}
+            }
             return (
-              <TouchableOpacity
-                key={role}
-                style={[styles.chip, active && styles.chipActive]}
-                onPress={() => toggleNewMemberRole(role)}
-              >
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                  {active ? `✓ ${role}` : role}
-                </Text>
-              </TouchableOpacity>
+              <View key={m.memberId} style={styles.memberRow}>
+                <View style={styles.memberInfo}>
+                  <Text variant="titleSmall" style={styles.memberName}>
+                    {m.name}
+                  </Text>
+                  <Text variant="bodySmall" style={styles.memberRole}>
+                    Roles: {rolesStr}
+                  </Text>
+                </View>
+                <IconButton
+                  icon="delete"
+                  iconColor="#f43f5e"
+                  size={20}
+                  onPress={() => handleRemoveMember(m.memberId)}
+                />
+              </View>
             );
           })}
-        </View>
 
-        <TouchableOpacity style={[styles.secondaryBtn, { marginTop: 12 }]} onPress={handleAddMember}>
-          <Text style={styles.secondaryBtnText}>Add Family Member</Text>
-        </TouchableOpacity>
-      </View>
+          <Text variant="labelLarge" style={[styles.subTitle, { marginTop: 8 }]}>
+            Add Family Member
+          </Text>
+          <TextInput
+            label="Member Name"
+            value={newMemberName}
+            onChangeText={setNewMemberName}
+            placeholder="e.g. Sarah"
+            mode="outlined"
+            left={<TextInput.Icon icon="account-plus" />}
+          />
+          <Text variant="bodySmall" style={styles.subLabel}>
+            Assign Roles:
+          </Text>
+          <View style={styles.chipRow}>
+            {['Parent', 'Driver', 'Participant'].map((role) => {
+              const active = newMemberRoles.includes(role);
+              return (
+                <Chip
+                  key={role}
+                  selected={active}
+                  onPress={() => toggleNewMemberRole(role)}
+                  icon={active ? 'check' : 'account-outline'}
+                  mode="outlined"
+                  style={styles.chip}
+                >
+                  {role}
+                </Chip>
+              );
+            })}
+          </View>
+
+          <Button
+            mode="outlined"
+            onPress={handleAddMember}
+            icon="plus"
+            style={styles.button}
+          >
+            Add Family Member
+          </Button>
+        </Card.Content>
+      </Card>
 
       {/* 4. Carpool Group Configuration */}
-      <Text style={styles.sectionTitle}>4. Carpool Group Configuration</Text>
-      <View style={styles.section}>
-        <View style={styles.badgeRow}>
-          <Text style={isParent ? styles.badgeSuccess : styles.badgeWarning}>
-            {isParent ? '✓ Parent Role Active (Can Create Groups)' : '⚠️ Parent Role Required to Create Groups'}
-          </Text>
-        </View>
-
-        <Text style={styles.label}>Create Carpool Group</Text>
-        <TextInput
-          style={styles.input}
-          value={newGroupName}
-          onChangeText={setNewGroupName}
-          placeholder="Group Title (e.g. Swim Club Commute)"
-        />
-        <TextInput
-          style={styles.input}
-          value={newEventSource}
-          onChangeText={setNewEventSource}
-          placeholder="Primary iCal Feed URL (.ics)"
-          autoCapitalize="none"
-        />
-        <TouchableOpacity
-          style={[styles.primaryBtn, !isParent && styles.btnDisabled]}
-          onPress={handleCreateGroup}
-          disabled={!isParent || processing}
-        >
-          <Text style={styles.primaryBtnText}>Create Carpool Group</Text>
-        </TouchableOpacity>
-
-        {schedules.length > 0 && (
-          <>
-            <Text style={[styles.label, { marginTop: 20 }]}>Select Carpool Group to Manage</Text>
-            <View style={styles.rowSelector}>
-              {schedules.map((sch) => {
-                const isSelected = selectedScheduleId === sch.scheduleId;
-                return (
-                  <TouchableOpacity
-                    key={sch.scheduleId}
-                    style={[styles.chip, isSelected && styles.chipActive]}
-                    onPress={() => setSelectedScheduleId(sch.scheduleId)}
-                  >
-                    <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>
-                      {sch.title}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </>
-        )}
-
-        {selectedGroup && (
-          <View style={styles.groupDetailCard}>
-            <Text style={styles.groupTitle}>Manage: {selectedGroup.title}</Text>
-            <Text style={styles.groupMeta}>
-              Owner: {selectedGroup.ownerId || matrixId}
+      <Text variant="titleMedium" style={styles.sectionTitle}>
+        4. Carpool Group Configuration
+      </Text>
+      <Card style={styles.card} mode="elevated">
+        <Card.Content style={styles.cardGap}>
+          <View style={[styles.badge, isParent ? styles.badgeSuccess : styles.badgeWarning]}>
+            <Icon
+              source={isParent ? 'check-circle' : 'alert-circle'}
+              size={18}
+              color={isParent ? '#16a34a' : '#b45309'}
+            />
+            <Text
+              variant="labelMedium"
+              style={[styles.badgeText, { color: isParent ? '#16a34a' : '#b45309' }]}
+            >
+              {isParent ? 'Parent Role Active (Can Create Groups)' : 'Parent Role Required to Create Groups'}
             </Text>
-
-            <Text style={[styles.label, { marginTop: 12 }]}>Event Sources (iCal Feeds)</Text>
-            {(() => {
-              let sources: string[] = [];
-              if (selectedGroup.eventSourcesJson) {
-                try {
-                  sources = JSON.parse(selectedGroup.eventSourcesJson);
-                } catch {}
-              } else if (selectedGroup.icalFeedUrl) {
-                sources = [selectedGroup.icalFeedUrl];
-              }
-              return sources.map((src, idx) => (
-                <Text key={idx} style={styles.sourceText}>
-                  • {src}
-                </Text>
-              ));
-            })()}
-
-            <TextInput
-              style={[styles.input, { marginTop: 8 }]}
-              value={additionalFeedUrl}
-              onChangeText={setAdditionalFeedUrl}
-              placeholder="Add another iCal feed URL (.ics)"
-              autoCapitalize="none"
-            />
-            <TouchableOpacity style={styles.secondaryBtn} onPress={handleAddEventSource}>
-              <Text style={styles.secondaryBtnText}>Add iCal Feed (Owner Only)</Text>
-            </TouchableOpacity>
-
-            <Text style={[styles.label, { marginTop: 16 }]}>Group Participants</Text>
-            {(() => {
-              let participants: string[] = [];
-              if (selectedGroup.participantsJson) {
-                try {
-                  participants = JSON.parse(selectedGroup.participantsJson);
-                } catch {}
-              }
-              if (participants.length === 0) participants = [matrixId];
-              return participants.map((partId) => (
-                <View key={partId} style={styles.participantRow}>
-                  <Text style={styles.participantText}>{partId}</Text>
-                  <TouchableOpacity
-                    style={styles.deleteBtn}
-                    onPress={() => handleRemoveParticipant(partId)}
-                  >
-                    <Text style={styles.deleteBtnText}>
-                      {partId === matrixId ? 'Leave Group' : 'Remove'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              ));
-            })()}
-
-            <TextInput
-              style={[styles.input, { marginTop: 8 }]}
-              value={inviteFamilyId}
-              onChangeText={setInviteFamilyId}
-              placeholder="Invite Family (@username:matrix.org)"
-              autoCapitalize="none"
-            />
-            <TouchableOpacity style={styles.secondaryBtn} onPress={handleInviteFamily}>
-              <Text style={styles.secondaryBtnText}>Invite Family to Group</Text>
-            </TouchableOpacity>
           </View>
-        )}
-      </View>
 
-      <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-        <Text style={styles.logoutBtnText}>Logout Session</Text>
-      </TouchableOpacity>
+          <TextInput
+            label="Carpool Group Title"
+            value={newGroupName}
+            onChangeText={setNewGroupName}
+            placeholder="e.g. Swim Club Commute"
+            mode="outlined"
+            left={<TextInput.Icon icon="car-multiple" />}
+          />
+          <TextInput
+            label="Primary iCal Feed URL"
+            value={newEventSource}
+            onChangeText={setNewEventSource}
+            placeholder="https://example.com/feed.ics"
+            mode="outlined"
+            autoCapitalize="none"
+            left={<TextInput.Icon icon="calendar-sync" />}
+          />
+          <Button
+            mode="contained"
+            onPress={handleCreateGroup}
+            disabled={!isParent || processing}
+            icon="plus-circle"
+            style={styles.button}
+          >
+            Create Carpool Group
+          </Button>
+
+          {schedules.length > 0 && (
+            <>
+              <Divider style={styles.divider} />
+              <Text variant="labelLarge" style={styles.subTitle}>
+                Select Carpool Group to Manage
+              </Text>
+              <View style={styles.chipRow}>
+                {schedules.map((sch) => {
+                  const isSelected = selectedScheduleId === sch.scheduleId;
+                  return (
+                    <Chip
+                      key={sch.scheduleId}
+                      selected={isSelected}
+                      onPress={() => setSelectedScheduleId(sch.scheduleId)}
+                      mode="outlined"
+                      style={styles.chip}
+                    >
+                      {sch.title}
+                    </Chip>
+                  );
+                })}
+              </View>
+            </>
+          )}
+
+          {selectedGroup && (
+            <Card style={styles.nestedCard} mode="outlined">
+              <Card.Content style={styles.cardGap}>
+                <Text variant="titleSmall" style={styles.groupTitle}>
+                  Manage: {selectedGroup.title}
+                </Text>
+                <Text variant="bodySmall" style={styles.groupMeta}>
+                  Owner: {selectedGroup.ownerId || matrixId}
+                </Text>
+
+                <Text variant="labelMedium" style={styles.subTitle}>
+                  Event Sources (iCal Feeds)
+                </Text>
+                {(() => {
+                  let sources: string[] = [];
+                  if (selectedGroup.eventSourcesJson) {
+                    try {
+                      sources = JSON.parse(selectedGroup.eventSourcesJson);
+                    } catch {}
+                  } else if (selectedGroup.icalFeedUrl) {
+                    sources = [selectedGroup.icalFeedUrl];
+                  }
+                  return sources.map((src, idx) => (
+                    <Text key={idx} variant="bodySmall" style={styles.sourceText}>
+                      • {src}
+                    </Text>
+                  ));
+                })()}
+
+                <TextInput
+                  label="Add iCal Feed URL"
+                  value={additionalFeedUrl}
+                  onChangeText={setAdditionalFeedUrl}
+                  placeholder="https://example.com/additional.ics"
+                  mode="outlined"
+                  autoCapitalize="none"
+                  left={<TextInput.Icon icon="link-plus" />}
+                />
+                <Button
+                  mode="outlined"
+                  onPress={handleAddEventSource}
+                  icon="calendar-plus"
+                  style={styles.button}
+                >
+                  Add iCal Feed
+                </Button>
+
+                <Divider style={styles.divider} />
+
+                <Text variant="labelMedium" style={styles.subTitle}>
+                  Group Participants
+                </Text>
+                {(() => {
+                  let participants: string[] = [];
+                  if (selectedGroup.participantsJson) {
+                    try {
+                      participants = JSON.parse(selectedGroup.participantsJson);
+                    } catch {}
+                  }
+                  if (participants.length === 0) participants = [matrixId];
+                  return participants.map((partId) => (
+                    <View key={partId} style={styles.participantRow}>
+                      <Text variant="bodySmall" style={styles.participantText}>
+                        {partId}
+                      </Text>
+                      <IconButton
+                        icon="account-remove"
+                        iconColor="#f43f5e"
+                        size={18}
+                        onPress={() => handleRemoveParticipant(partId)}
+                      />
+                    </View>
+                  ));
+                })()}
+
+                <TextInput
+                  label="Invite Family (@username:matrix.org)"
+                  value={inviteFamilyId}
+                  onChangeText={setInviteFamilyId}
+                  placeholder="@username:matrix.org"
+                  mode="outlined"
+                  autoCapitalize="none"
+                  left={<TextInput.Icon icon="account-multiple-plus" />}
+                />
+                <Button
+                  mode="outlined"
+                  onPress={handleInviteFamily}
+                  icon="send-outline"
+                  style={styles.button}
+                >
+                  Invite Family to Group
+                </Button>
+              </Card.Content>
+            </Card>
+          )}
+        </Card.Content>
+      </Card>
+
+      <Button
+        mode="outlined"
+        textColor="#f43f5e"
+        onPress={handleLogout}
+        icon="logout"
+        style={styles.logoutBtn}
+      >
+        Logout Session
+      </Button>
     </ScrollView>
   );
 }
@@ -612,7 +697,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8fafc',
+  },
+  contentContainer: {
     padding: 16,
+    paddingBottom: 48,
   },
   loadingContainer: {
     flex: 1,
@@ -621,191 +709,104 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
   },
   sectionTitle: {
-    fontSize: 18,
     fontWeight: 'bold',
     color: '#0f172a',
-    marginTop: 16,
-    marginBottom: 12,
-  },
-  section: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#334155',
-    marginBottom: 6,
-  },
-  subLabel: {
-    fontSize: 12,
-    color: '#64748b',
+    marginTop: 12,
     marginBottom: 8,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 8,
-    padding: 10,
-    fontSize: 14,
+  card: {
+    marginBottom: 16,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+  },
+  nestedCard: {
+    marginTop: 12,
     backgroundColor: '#f8fafc',
-    marginBottom: 10,
-  },
-  primaryBtn: {
-    backgroundColor: '#2563eb',
-    padding: 12,
     borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 4,
   },
-  primaryBtnText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 14,
+  cardGap: {
+    gap: 10,
   },
-  secondaryBtn: {
-    backgroundColor: '#0284c7',
-    padding: 10,
+  subTitle: {
+    fontWeight: '700',
+    color: '#334155',
+  },
+  subLabel: {
+    color: '#64748b',
+  },
+  divider: {
+    marginVertical: 4,
+  },
+  button: {
     borderRadius: 8,
-    alignItems: 'center',
+    marginTop: 2,
   },
-  secondaryBtnText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 13,
-  },
-  btnDisabled: {
-    backgroundColor: '#94a3b8',
-  },
-  rowSelector: {
+  chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    marginBottom: 8,
   },
   chip: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    backgroundColor: '#f1f5f9',
-  },
-  chipActive: {
-    backgroundColor: '#2563eb',
-    borderColor: '#2563eb',
-  },
-  chipText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#475569',
-  },
-  chipTextActive: {
-    color: '#fff',
+    borderRadius: 20,
   },
   memberRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: '#f8fafc',
-    padding: 10,
-    borderRadius: 6,
+    paddingLeft: 12,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    marginBottom: 8,
+  },
+  memberInfo: {
+    flex: 1,
   },
   memberName: {
-    fontSize: 14,
     fontWeight: 'bold',
     color: '#1e293b',
   },
   memberRole: {
-    fontSize: 12,
     color: '#64748b',
   },
-  deleteBtn: {
-    backgroundColor: '#fecdd3',
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-  },
-  deleteBtnText: {
-    color: '#e11d48',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  badgeRow: {
-    marginBottom: 12,
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 10,
+    borderRadius: 8,
   },
   badgeSuccess: {
     backgroundColor: '#f0fdf4',
-    borderColor: '#bbf7d0',
-    borderWidth: 1,
-    color: '#16a34a',
-    padding: 8,
-    borderRadius: 6,
-    fontWeight: 'bold',
-    fontSize: 12,
   },
   badgeWarning: {
     backgroundColor: '#fffbe3',
-    borderColor: '#fde047',
-    borderWidth: 1,
-    color: '#b45309',
-    padding: 8,
-    borderRadius: 6,
-    fontWeight: 'bold',
-    fontSize: 12,
   },
-  groupDetailCard: {
-    backgroundColor: '#f8fafc',
-    borderRadius: 8,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    marginTop: 16,
+  badgeText: {
+    fontWeight: '700',
   },
   groupTitle: {
-    fontSize: 15,
     fontWeight: 'bold',
     color: '#0f172a',
   },
   groupMeta: {
-    fontSize: 12,
     color: '#64748b',
-    marginBottom: 8,
   },
   sourceText: {
-    fontSize: 12,
     color: '#0369a1',
-    marginBottom: 4,
   },
   participantRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
   },
   participantText: {
-    fontSize: 13,
     color: '#334155',
   },
   logoutBtn: {
-    borderColor: '#f43f5e',
-    borderWidth: 1.5,
-    padding: 14,
-    borderRadius: 8,
-    alignItems: 'center',
     marginTop: 12,
-    marginBottom: 48,
-  },
-  logoutBtnText: {
-    color: '#f43f5e',
-    fontWeight: 'bold',
-    fontSize: 15,
+    marginBottom: 24,
+    borderColor: '#f43f5e',
+    borderRadius: 8,
   },
 });

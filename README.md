@@ -88,7 +88,7 @@ npm run ios
 
 ## 📁 Project Structure
 
-* `/app/` - React Native Expo Router screens (`app/index.tsx`, `app/(tabs)/`, `app/route-active.tsx`).
+* `/app/` - React Native Expo Router screens with Material Design 3 UI (`app/index.tsx`, `app/(tabs)/`, `app/route-active.tsx`).
 * `/db/` - Local SQLite database configuration (`db/client.ts`) and Drizzle ORM schemas (`db/schema.ts`).
 * `/utils/` - Matrix REST API client helper (`matrixClient.ts`), iCal RFC 5545 parser (`icalParser.ts`), and TSP route optimizer (`routeOptimizer.ts`).
 * `/docs/` - Architecture diagrams, API specs, and application screenshots (`docs/screenshots/`).

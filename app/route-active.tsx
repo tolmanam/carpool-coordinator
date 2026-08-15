@@ -1,5 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, ScrollView } from 'react-native';
+import {
+  Text,
+  Card,
+  Button,
+  ActivityIndicator,
+  Banner,
+  useTheme,
+  Surface,
+  Divider,
+  Icon,
+} from 'react-native-paper';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { db } from '../db/client';
 import { cachedSchedules, cachedFamilies, cachedFamilyMembers, cachedSignups } from '../db/schema';
@@ -16,6 +27,7 @@ interface UIWaypoint {
 
 export default function RouteActiveScreen() {
   const router = useRouter();
+  const theme = useTheme();
   const params = useLocalSearchParams();
   const scheduleId = params.scheduleId as string;
   const eventTimestamp = params.eventTimestamp ? parseInt(params.eventTimestamp as string, 10) : Date.now();
@@ -29,13 +41,11 @@ export default function RouteActiveScreen() {
   const [waypoints, setWaypoints] = useState<UIWaypoint[]>([]);
   const [activeAlert, setActiveAlert] = useState<string | null>(null);
 
-  // Simulate GPS tick during active drive
   useEffect(() => {
     if (activeDrive) {
       const simulateGpsTick = async () => {
         const currentLoc = { latitude: 34.0194, longitude: -118.4912 };
 
-        // Create simulated Waypoint list mapping current schedule state
         const simulatedWaypoints: Waypoint[] = waypoints.map((wp) => {
           const orig = Date.now() + 10 * 60 * 1000;
           const est = delayReported ? orig + 10 * 60 * 1000 : orig;
@@ -55,7 +65,6 @@ export default function RouteActiveScreen() {
     }
   }, [activeDrive, delayReported, scheduleId, eventTimestamp, waypoints]);
 
-  // Check for active alert messages in Matrix Room
   useEffect(() => {
     const checkAlerts = () => {
       const roomMsgs = mockMatrixCloud.messages[scheduleId] || [];
@@ -74,7 +83,6 @@ export default function RouteActiveScreen() {
     return () => clearInterval(interval);
   }, [scheduleId, delayReported]);
 
-  // Clear alerts when delay is toggled off
   useEffect(() => {
     if (!delayReported && mockMatrixCloud.messages[scheduleId]) {
       mockMatrixCloud.messages[scheduleId] = mockMatrixCloud.messages[scheduleId].filter(
@@ -92,7 +100,6 @@ export default function RouteActiveScreen() {
           return;
         }
 
-        // 1. Fetch schedule destination
         const schedule = await db.select().from(cachedSchedules).where(eq(cachedSchedules.scheduleId, scheduleId)).get();
         if (!schedule) {
           setLoading(false);
@@ -105,7 +112,6 @@ export default function RouteActiveScreen() {
           longitude: schedule.longitude,
         };
 
-        // 2. Fetch driver home profile
         const session = await getSessionInfo();
         const userMatrixId = session.username.startsWith('@') ? session.username : `@${session.username}:matrix.org`;
 
@@ -116,7 +122,6 @@ export default function RouteActiveScreen() {
           memberId: `parent_${session.username}`,
         };
 
-        // 3. Fetch active riders for this commute
         const signups = await db.select().from(cachedSignups).where(
           and(
             eq(cachedSignups.scheduleId, scheduleId),
@@ -126,7 +131,6 @@ export default function RouteActiveScreen() {
           )
         ).all();
 
-        // Map rider IDs to coordinate positions
         const riderAddresses: Array<{ latitude: number; longitude: number; memberId: string; name: string }> = [];
 
         const members = await db.select().from(cachedFamilyMembers).all();
@@ -147,7 +151,6 @@ export default function RouteActiveScreen() {
           }
         }
 
-        // If no riders, add a default mock rider address to ensure TSP solves gracefully for preview/tests
         if (riderAddresses.length === 0) {
           riderAddresses.push({
             latitude: 34.0250,
@@ -157,7 +160,6 @@ export default function RouteActiveScreen() {
           });
         }
 
-        // 4. Run pure Client-Side TSP heuristic
         const optimalRoute: Waypoint[] = solveOptimalRoute(
           driverHome,
           destinationCoords,
@@ -165,7 +167,6 @@ export default function RouteActiveScreen() {
           eventTimestamp
         );
 
-        // 5. Map the solver waypoints to UITimeline elements
         const uiWaypoints: UIWaypoint[] = optimalRoute.map((wp, index) => {
           let name = '';
           if (wp.type === 'driver_start') {
@@ -183,7 +184,6 @@ export default function RouteActiveScreen() {
             minute: '2-digit',
           });
 
-          // Calculate ETA with delay
           const etaTimeVal = delayReported ? (wp.estimatedTime || 0) + 10 * 60 * 1000 : (wp.estimatedTime || 0);
           const etaTime = new Date(etaTimeVal);
           const etaTimeText = etaTime.toLocaleTimeString('en-US', {
@@ -201,7 +201,6 @@ export default function RouteActiveScreen() {
 
         setWaypoints(uiWaypoints);
 
-        // Compute total ETA in minutes to destination
         const totalDurationMs = eventTimestamp - (optimalRoute[0].estimatedTime || eventTimestamp);
         const mins = Math.max(5, Math.round(totalDurationMs / (60 * 1000)));
         setEtaMinutes(delayReported ? mins + 10 : mins);
@@ -228,72 +227,117 @@ export default function RouteActiveScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2563eb" />
+        <ActivityIndicator size="large" animating={true} color={theme.colors.primary} />
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Text style={styles.backBtnText}>✕ Close Active Route</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Active Carpool Route</Text>
-      </View>
+      <Surface style={styles.header} elevation={1}>
+        <Button
+          mode="contained-tonal"
+          onPress={() => router.back()}
+          icon="close"
+          compact
+        >
+          Close
+        </Button>
+        <Text variant="titleMedium" style={styles.title}>
+          Active Carpool Route
+        </Text>
+      </Surface>
 
-      <ScrollView style={styles.scrollContent}>
-        {/* Dynamic Map Mock Panel */}
-        <View style={styles.mapMock}>
-          <Text style={styles.mapText}>[ Interactive Live Map Route Mock ]</Text>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Dynamic Map Mock Surface */}
+        <Surface style={styles.mapMock} elevation={2}>
+          <Text variant="titleSmall" style={styles.mapText}>
+            [ Interactive Live Map Route ]
+          </Text>
           {activeDrive && (
             <View style={styles.liveTrackingPulse}>
               <View style={styles.pulseDot} />
-              <Text style={styles.liveTrackingText}>Streaming GPS coordinates to Matrix Room...</Text>
+              <Text variant="bodySmall" style={styles.liveTrackingText}>
+                Streaming GPS coordinates to Matrix Room...
+              </Text>
             </View>
           )}
-        </View>
+        </Surface>
 
         {activeAlert && (
-          <View style={styles.alertBanner}>
-            <Text style={styles.alertText}>⚠️ {activeAlert}</Text>
-          </View>
+          <Banner
+            visible={true}
+            icon="alert"
+            style={styles.alertBanner}
+          >
+            {activeAlert}
+          </Banner>
         )}
 
-        <View style={styles.detailsCard}>
-          <Text style={styles.cardHeader}>Estimated Arrival: {etaMinutes} minutes</Text>
-          <Text style={styles.cardSub}>Destination: {destinationTitle}</Text>
+        <Card style={styles.detailsCard} mode="elevated">
+          <Card.Content>
+            <Text variant="titleLarge" style={styles.cardHeader}>
+              Estimated Arrival: {etaMinutes} mins
+            </Text>
+            <Text variant="bodyMedium" style={styles.cardSub}>
+              Destination: {destinationTitle}
+            </Text>
 
-          <View style={styles.stopsTimeline}>
-            {waypoints.map((wp, idx) => (
-              <View key={idx} style={styles.stopItem}>
-                <Text style={[styles.stopName, wp.type === 'destination' && { fontWeight: 'bold' }]}>
-                  {wp.name}
-                </Text>
-                <Text style={styles.stopTime}>
-                  Scheduled: {wp.scheduledTimeText} • ETA: {wp.etaTimeText}
-                </Text>
-              </View>
-            ))}
-          </View>
-        </View>
+            <Divider style={styles.divider} />
+
+            <View style={styles.stopsTimeline}>
+              {waypoints.map((wp, idx) => (
+                <View key={idx} style={styles.stopItem}>
+                  <View style={styles.stopHeader}>
+                    <Icon
+                      source={
+                        wp.type === 'driver_start'
+                          ? 'car'
+                          : wp.type === 'destination'
+                          ? 'flag-checkered'
+                          : 'account-child'
+                      }
+                      size={18}
+                      color={theme.colors.primary}
+                    />
+                    <Text
+                      variant="bodyMedium"
+                      style={[styles.stopName, wp.type === 'destination' && { fontWeight: 'bold' }]}
+                    >
+                      {wp.name}
+                    </Text>
+                  </View>
+                  <Text variant="bodySmall" style={styles.stopTime}>
+                    Scheduled: {wp.scheduledTimeText} • ETA: {wp.etaTimeText}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </Card.Content>
+        </Card>
 
         <View style={styles.actionSection}>
-          <TouchableOpacity
-            style={[styles.driveButton, activeDrive ? styles.driveActive : styles.driveInactive]}
+          <Button
+            mode="contained"
+            buttonColor={activeDrive ? '#ef4444' : '#10b981'}
             onPress={() => setActiveDrive(!activeDrive)}
+            icon={activeDrive ? 'stop' : 'play'}
+            style={styles.actionBtn}
+            contentStyle={styles.btnContent}
           >
-            <Text style={styles.driveButtonText}>{activeDrive ? 'Stop Active Drive' : 'Start Active Drive'}</Text>
-          </TouchableOpacity>
+            {activeDrive ? 'Stop Active Drive' : 'Start Active Drive'}
+          </Button>
 
-          <TouchableOpacity
-            style={[styles.delayButton, delayReported && styles.delayActive]}
+          <Button
+            mode="contained"
+            buttonColor={delayReported ? '#d97706' : '#f59e0b'}
             onPress={() => setDelayReported(!delayReported)}
+            icon={delayReported ? 'check-circle' : 'clock-alert'}
+            style={styles.actionBtn}
+            contentStyle={styles.btnContent}
           >
-            <Text style={styles.delayButtonText}>
-              {delayReported ? '✓ Delay Alert Dispatched' : 'Report 10 Min Delay'}
-            </Text>
-          </TouchableOpacity>
+            {delayReported ? 'Delay Alert Dispatched' : 'Report 10 Min Delay'}
+          </Button>
         </View>
       </ScrollView>
     </View>
@@ -312,48 +356,33 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
   },
   header: {
-    backgroundColor: '#fff',
     paddingTop: 48,
     paddingHorizontal: 16,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderColor: '#e2e8f0',
+    paddingBottom: 12,
+    backgroundColor: '#ffffff',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
   },
-  backBtn: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    backgroundColor: '#f1f5f9',
-  },
-  backBtnText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#475569',
-  },
   title: {
-    fontSize: 16,
     fontWeight: 'bold',
     color: '#0f172a',
   },
   scrollContent: {
     padding: 16,
+    paddingBottom: 32,
   },
   mapMock: {
-    height: 220,
+    height: 200,
     backgroundColor: '#cbd5e1',
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#94a3b8',
+    marginBottom: 16,
     position: 'relative',
   },
   mapText: {
-    color: '#475569',
+    color: '#334155',
     fontWeight: 'bold',
   },
   liveTrackingPulse: {
@@ -374,94 +403,57 @@ const styles = StyleSheet.create({
     backgroundColor: '#ef4444',
   },
   liveTrackingText: {
-    color: '#fff',
-    fontSize: 11,
+    color: '#ffffff',
     fontWeight: '600',
   },
+  alertBanner: {
+    backgroundColor: '#fffbeb',
+    borderRadius: 8,
+    marginBottom: 16,
+  },
   detailsCard: {
-    backgroundColor: '#fff',
+    backgroundColor: '#ffffff',
     borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    marginBottom: 24,
+    marginBottom: 20,
   },
   cardHeader: {
-    fontSize: 18,
     fontWeight: 'bold',
     color: '#1e293b',
   },
   cardSub: {
-    fontSize: 13,
-    color: '#64748b',
-    marginTop: 4,
-    marginBottom: 16,
-  },
-  stopsTimeline: {
-    borderLeftWidth: 2,
-    borderColor: '#e2e8f0',
-    paddingLeft: 16,
-    gap: 16,
-  },
-  stopItem: {
-    position: 'relative',
-  },
-  stopName: {
-    fontSize: 14,
-    color: '#1e293b',
-  },
-  stopTime: {
-    fontSize: 11,
     color: '#64748b',
     marginTop: 2,
   },
-  actionSection: {
-    gap: 12,
-    marginBottom: 40,
+  divider: {
+    marginVertical: 12,
   },
-  driveButton: {
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
+  stopsTimeline: {
+    borderLeftWidth: 2,
+    borderColor: '#cbd5e1',
+    paddingLeft: 12,
+    gap: 14,
   },
-  driveActive: {
-    backgroundColor: '#ef4444',
-  },
-  driveInactive: {
-    backgroundColor: '#10b981',
-  },
-  driveButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  delayButton: {
-    backgroundColor: '#f59e0b',
-    padding: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  delayActive: {
-    backgroundColor: '#d97706',
-  },
-  delayButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 15,
-  },
-  alertBanner: {
-    backgroundColor: '#fffbeb',
-    borderColor: '#fef3c7',
-    borderWidth: 1,
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
+  stopItem: {},
+  stopHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
   },
-  alertText: {
-    color: '#b45309',
-    fontWeight: 'bold',
-    fontSize: 14,
+  stopName: {
+    color: '#1e293b',
+  },
+  stopTime: {
+    color: '#64748b',
+    marginTop: 2,
+    marginLeft: 26,
+  },
+  actionSection: {
+    gap: 12,
+  },
+  actionBtn: {
+    borderRadius: 8,
+  },
+  btnContent: {
+    paddingVertical: 6,
   },
 });

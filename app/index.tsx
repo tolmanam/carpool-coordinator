@@ -1,10 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, Switch, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, ScrollView } from 'react-native';
+import {
+  Text,
+  TextInput,
+  Button,
+  Card,
+  Switch,
+  ActivityIndicator,
+  Surface,
+  useTheme,
+  Icon,
+} from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { authenticateMatrix, getSessionInfo, authenticateMatrixSSO } from '../utils/matrixClient';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const theme = useTheme();
+
   const [homeserver, setHomeserver] = useState('https://matrix.org');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -12,7 +25,6 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is already logged in
     getSessionInfo().then((session) => {
       if (session.isLoggedIn) {
         router.replace('/(tabs)/schedule');
@@ -47,134 +59,158 @@ export default function LoginScreen() {
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        <ActivityIndicator size="large" color="#2563eb" />
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" animating={true} color={theme.colors.primary} />
       </View>
     );
   }
 
   return (
-    <View style={[styles.container, isOffline && styles.containerOffline]}>
-      <View style={styles.headerBadge}>
-        <Text style={styles.badgeText}>{isOffline ? 'OFFLINE MODE' : 'ONLINE'}</Text>
-        <Switch
-          value={isOffline}
-          onValueChange={setIsOffline}
-          trackColor={{ false: '#767577', true: '#f43f5e' }}
-          thumbColor={isOffline ? '#fff' : '#f4f3f4'}
-        />
-      </View>
+    <ScrollView contentContainerStyle={styles.scrollContainer}>
+      <Card style={[styles.card, isOffline && styles.cardOffline]} mode="elevated">
+        <Card.Content>
+          <Surface style={styles.headerBadge} elevation={1}>
+            <View style={styles.badgeLeft}>
+              <Icon source={isOffline ? 'wifi-off' : 'wifi'} size={20} color={isOffline ? '#f43f5e' : '#10b981'} />
+              <Text variant="labelLarge" style={styles.badgeText}>
+                {isOffline ? 'OFFLINE MODE' : 'ONLINE'}
+              </Text>
+            </View>
+            <Switch
+              value={isOffline}
+              onValueChange={setIsOffline}
+              color={theme.colors.primary}
+            />
+          </Surface>
 
-      <Text style={styles.title}>Carpool Coordinator</Text>
-      <Text style={styles.subtitle}>Decentralized & Encrypted Group Commutes</Text>
+          <Text variant="headlineMedium" style={styles.title}>
+            Carpool Coordinator
+          </Text>
+          <Text variant="bodyMedium" style={styles.subtitle}>
+            Decentralized & Encrypted Group Commutes
+          </Text>
 
-      <View style={styles.form}>
-        <Text style={styles.label}>Homeserver URL</Text>
-        <TextInput
-          style={styles.input}
-          value={homeserver}
-          onChangeText={setHomeserver}
-          placeholder="https://matrix.org"
-          autoCapitalize="none"
-        />
+          <View style={styles.form}>
+            <TextInput
+              label="Homeserver URL"
+              value={homeserver}
+              onChangeText={setHomeserver}
+              placeholder="https://matrix.org"
+              mode="outlined"
+              autoCapitalize="none"
+              left={<TextInput.Icon icon="server" />}
+            />
 
-        <Text style={styles.label}>Username</Text>
-        <TextInput
-          style={styles.input}
-          value={username}
-          onChangeText={setUsername}
-          placeholder="@username:matrix.org"
-          autoCapitalize="none"
-        />
+            <TextInput
+              label="Username"
+              value={username}
+              onChangeText={setUsername}
+              placeholder="@username:matrix.org"
+              mode="outlined"
+              autoCapitalize="none"
+              left={<TextInput.Icon icon="account" />}
+            />
 
-        <Text style={styles.label}>Password</Text>
-        <TextInput
-          style={styles.input}
-          value={password}
-          onChangeText={setPassword}
-          placeholder="••••••••"
-          secureTextEntry
-          autoCapitalize="none"
-        />
+            <TextInput
+              label="Password"
+              value={password}
+              onChangeText={setPassword}
+              placeholder="••••••••"
+              secureTextEntry
+              mode="outlined"
+              autoCapitalize="none"
+              left={<TextInput.Icon icon="lock" />}
+            />
 
-        <TouchableOpacity style={styles.button} onPress={handleLogin}>
-          <Text style={styles.buttonText}>Sign In with Matrix</Text>
-        </TouchableOpacity>
+            <Button
+              mode="contained"
+              onPress={handleLogin}
+              style={styles.button}
+              contentStyle={styles.buttonContent}
+              icon="login"
+            >
+              Sign In with Matrix
+            </Button>
 
-        <TouchableOpacity style={[styles.button, styles.ssoButton]} onPress={handleSSOLogin}>
-          <Text style={styles.buttonText}>Sign In with SSO / OIDC</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+            <Button
+              mode="outlined"
+              onPress={handleSSOLogin}
+              style={styles.ssoButton}
+              contentStyle={styles.buttonContent}
+              icon="shield-account"
+            >
+              Sign In with SSO / OIDC
+            </Button>
+          </View>
+        </Card.Content>
+      </Card>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    padding: 24,
+  scrollContainer: {
+    flexGrow: 1,
+    padding: 20,
     justifyContent: 'center',
+    backgroundColor: '#f8fafc',
   },
-  containerOffline: {
-    backgroundColor: '#fef2f2',
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+  },
+  card: {
+    paddingVertical: 12,
+    borderRadius: 16,
+    backgroundColor: '#ffffff',
+  },
+  cardOffline: {
+    backgroundColor: '#fff1f2',
   },
   headerBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 8,
-    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
     backgroundColor: '#f1f5f9',
-    marginBottom: 32,
+    marginBottom: 24,
+  },
+  badgeLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   badgeText: {
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: '#334155',
   },
   title: {
-    fontSize: 28,
     fontWeight: 'bold',
     textAlign: 'center',
     color: '#0f172a',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   subtitle: {
-    fontSize: 16,
     color: '#64748b',
     textAlign: 'center',
-    marginBottom: 32,
+    marginBottom: 24,
   },
   form: {
-    gap: 16,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#334155',
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    backgroundColor: '#f8fafc',
+    gap: 14,
   },
   button: {
-    backgroundColor: '#2563eb',
-    padding: 16,
+    marginTop: 12,
     borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 16,
   },
   ssoButton: {
-    backgroundColor: '#0f172a',
-    marginTop: 8,
+    marginTop: 4,
+    borderRadius: 8,
   },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+  buttonContent: {
+    paddingVertical: 6,
   },
 });
