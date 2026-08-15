@@ -31,6 +31,9 @@ export const cachedSchedules = sqliteTable('cached_schedules', {
   scheduleId: text('schedule_id').primaryKey(),
   title: text('title').notNull(),
   icalFeedUrl: text('ical_feed_url'),
+  eventSourcesJson: text('event_sources_json'), // Serialized array of iCal feed URLs
+  ownerId: text('owner_id'),                  // Matrix ID of the carpool group owner/creator
+  participantsJson: text('participants_json'), // Serialized array of participating family Matrix IDs
   latitude: real('latitude').notNull(),
   longitude: real('longitude').notNull(),
   addressText: text('address_text'),
