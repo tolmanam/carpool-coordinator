@@ -4,6 +4,64 @@ An elegant, **fully decentralized, zero-cloud-cost**, offline-first solution for
 
 ---
 
+## 📸 Application Screenshots
+
+| **Matrix Authentication & SSO** | **Schedule & Local Signups** |
+| :---: | :---: |
+| ![Login Screen](docs/screenshots/01_login.png) | ![Schedule Screen](docs/screenshots/02_schedule.png) |
+| *Sign in with Matrix homeserver credentials or OIDC SSO* | *View synced iCal commutes, register to ride or drive* |
+
+| **E2EE Family Circles** | **Active TSP Route & Dynamic Tracking** |
+| :---: | :---: |
+| ![Circles Screen](docs/screenshots/03_circles.png) | ![Active Route Screen](docs/screenshots/04_active_route.png) |
+| *Manage Megolm v1 E2EE encrypted rooms & iCal feeds* | *TSP optimized waypoint pickup routes & delay alerts* |
+
+---
+
+## ⚡ Quick Start Guide
+
+### Prerequisites
+* **Node.js**: v18.x or v20.x or v22.x (LTS)
+* **npm**: v9+ or higher
+* **Java Development Kit (JDK)**: JDK 17 (for local Android APK builds)
+* **Android SDK / Android Studio**: (optional, required only for running on Android emulator or local native builds)
+
+---
+
+### 🚀 Getting Started in 3 Steps
+
+#### 1. Clone the Repository & Install Dependencies
+```bash
+git clone https://github.com/carpool-coordinator/carpool-coordinator.git
+cd carpool-coordinator
+npm install
+```
+
+#### 2. Run Quality Checks & Unit Tests
+Run TypeScript type checking and the Jest test suite:
+```bash
+# Type check TypeScript files
+npm run ts:check
+
+# Run unit tests (iCal parser, TSP route optimizer, Matrix helper, SQLite DB schema)
+npm test
+```
+
+#### 3. Start the Local Expo Development Server
+Start the Expo Metro bundler to run the application on mobile devices or emulators:
+```bash
+# Start Metro bundler
+npm start
+
+# Run directly on connected Android device / emulator
+npm run android
+
+# Run directly on iOS simulator (macOS required)
+npm run ios
+```
+
+---
+
 ## 🚀 Key Advantages of the Matrix Paradigm
 
 * **Zero Hosting Costs**: Eliminates backends, servers, and central databases. The application runs entirely on your phone (client-side), storing decentralized states and messages directly inside **Matrix rooms**.
@@ -16,23 +74,24 @@ An elegant, **fully decentralized, zero-cloud-cost**, offline-first solution for
 ## 🛠️ Main Features
 
 1. **Decentralized Matrix Authentication**
-   * Instant sign-in using any standard Matrix homeserver credential.
-2. **Local-First iCal parser**
+   * Instant sign-in using any standard Matrix homeserver credential or federated SSO / OIDC login.
+2. **Local-First iCal Parser**
    * Client-side iCalendar (`.ics`) loader fetches school or activity calendars, parsing them directly into your local offline index.
 3. **Decentralized Group Management**
    * Uses E2EE Matrix Rooms to represent family groups. Room joins, invites, and profiles translate straight into family coordination circles.
 4. **Client-Side Route Calculations**
    * Runs local Traveling Salesperson Problem (TSP) algorithms directly on the driver's phone to plan the fastest pickup route and generate scheduled pickup ETAs.
-5. **Real-Time Tracking & Alerts**
-   * Streams ephemeral GPS positions directly into Matrix rooms during active carpools, calculating dynamic arrival times and dispatching immediate room alerts (sickness, cancellation, delays).
+5. **Real-Time Tracking & Delay Warnings**
+   * Streams ephemeral GPS positions directly into Matrix rooms during active carpools, calculating dynamic arrival times and dispatching immediate room alerts (`org.carpool.alert`) if running behind schedule (>5 minutes).
 
 ---
 
 ## 📁 Project Structure
 
-* `/docs/architecture.md` - Technical Architecture, Decentralization philosophy, and Privacy controls.
-* `/docs/database.md` - Custom Matrix Event specifications & local SQLite database tables.
-* `/docs/api.md` - Client-side Matrix room setup flows, iCal parsers, and TSP route calculation flows.
+* `/app/` - React Native Expo Router screens (`app/index.tsx`, `app/(tabs)/`, `app/route-active.tsx`).
+* `/db/` - Local SQLite database configuration (`db/client.ts`) and Drizzle ORM schemas (`db/schema.ts`).
+* `/utils/` - Matrix REST API client helper (`matrixClient.ts`), iCal RFC 5545 parser (`icalParser.ts`), and TSP route optimizer (`routeOptimizer.ts`).
+* `/docs/` - Architecture diagrams, API specs, and application screenshots (`docs/screenshots/`).
 
 ---
 
