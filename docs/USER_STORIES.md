@@ -1,6 +1,6 @@
 # User Stories & Application Requirements
 
-This document captures the complete set of user stories, personas, and system requirements for the **Carpool Coordinator** application (Flutter / Material 3 Edition).
+This document captures the complete set of user stories, personas, and system requirements for the **Carpool Coordinator** application.
 
 ---
 
@@ -46,7 +46,6 @@ This document captures the complete set of user stories, personas, and system re
 
 ## 🛠️ Architectural & System Requirements
 
-1. **Flutter 3 / Material 3 Core**: Built using Flutter 3 (Dart) targeting Android devices, adhering to Material Design 3 guidelines (`useMaterial3: true`).
 2. **Decentralized Matrix Paradigm**: Zero custom cloud backend servers. Shared group states, profiles, and sign-ups are stored in encrypted Matrix rooms (`m.room.state` and custom `org.carpool.*` payload messages).
 3. **Local SQLite Persistence**: Uses local SQLite database (`drift` / `sqflite`) for instant, offline-first data caching and optimistic UI updates.
 4. **Client-Side Route Engine**: Runs Haversine distance-based Traveling Salesperson Problem (TSP) waypoint optimization directly on the driver's device.
