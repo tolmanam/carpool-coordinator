@@ -12,6 +12,8 @@ This document captures the complete set of user stories, personas, and system re
 4. **Organization / Activity Coordinator**: Coach, teacher, or community leader who creates activity calendars (iCal feeds), manages Matrix coordination spaces/rooms, and shares schedule links with parents.
 5. **Generic Mobile User**: A first-time or returning app user managing authentication, notification settings, theme preferences, and offline data sync.
 
+> Individual users can take on multiple Personas, that may differ based on the specific Organization and/or Family group.
+
 ---
 
 ## 📖 User Stories
@@ -19,7 +21,7 @@ This document captures the complete set of user stories, personas, and system re
 ### Persona: Parent / Family Admin
 - **US-101 (Profile Management)**: As a Parent, I want to create and customize my family profile (family name, home address, geographic coordinates) so that my household can participate in local carpool routes.
 - **US-102 (Family Members)**: As a Parent, I want to add family members (children, secondary guardians) with designated roles so that they can be assigned to rides or driving duties.
-- **US-103 (Circle Joining)**: As a Parent, I want to create or join a Carpool Circle using a Matrix room invite so that I can coordinate rides securely with known families.
+- **US-103 (Circle Joining)**: As a Parent, I want to create or join a Carpool Circle so that I can coordinate rides securely with known families.
 - **US-104 (Ride Registration)**: As a Parent, I want to register my child for an upcoming activity commute so that assigned drivers know who needs a ride.
 
 ### Persona: Driver
