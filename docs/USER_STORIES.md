@@ -4,7 +4,13 @@ This document captures the core user stories, personas, and requirements for the
 
 ---
 
-## 👥 Personas
+## Organizations
+
+1. **Individual**: Human participants that log into the app.  Each human may be associated with zero or one Matrix account.  Young "passengers" don't require their own Matrix account, but the option is there so that older kids can use the app to see the plan and communicate
+3. **Family/Group**: Self organized group of **individuals**.
+4. **Carpool Circle**: Carpool circles group **passengers** with specific schedules.  
+
+## 👥 Individual Personas/Roles
 
 1. **Parent / Family Admin**: Manages family profile, members, home location, and connects carpool circles/groups.
 2. **Driver**: Registers to drive specific commutes, views calculated optimal pickup routes/ETAs, streams live GPS updates, and dispatches delay alerts.
@@ -15,10 +21,14 @@ This document captures the core user stories, personas, and requirements for the
 ## 📖 User Stories
 
 *(User stories will be added and expanded here during iteration)*
+### Persona: All
+- **US-001**: As an Individual, when I open the app the first time, I should be greeted by a Matrix login screen.
+- **US-002**: As an Individual, after logging in, the application should provide a list of Carpool Circles that the user is a member of.
+- **US-003**: As an Individual, I should be able to accept invitations to join Family/Groups and Carpool Circles
 
 ### Persona: Parent / Family Admin
-- **US-101**: As a Parent, I want to create and customize my family profile with members and home coordinates so that my household can join carpool groups.
-- **US-102**: As a Parent, I want to create or join a Carpool Circle using a Matrix room so that I can coordinate commutes with other families privately.
+- **US-101**: As a Parent, I want to create and customize my family profile with members (using a Matrix room) and home coordinates so that my household can join carpool groups.
+- **US-102**: As a Parent, I want to create or join a Carpool Circle (using a Matrix room) so that I can coordinate commutes with other families privately.
 
 ### Persona: Driver
 - **US-201**: As a Driver, I want to sign up to drive specific activity occurrences on the schedule so that passengers know who is driving.
