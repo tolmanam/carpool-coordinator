@@ -1,49 +1,51 @@
 # User Stories & Application Requirements
 
-This document captures the core user stories, personas, and requirements for the **Carpool Coordinator** application.
+This document captures the complete set of user stories, personas, and system requirements for the **Carpool Coordinator** application (Flutter / Material 3 Edition).
 
 ---
 
-## Organizations
+## 👥 Personas
 
-1. **Individual**: Human participants that log into the app.  Each human may be associated with zero or one Matrix account.  Young "passengers" don't require their own Matrix account, but the option is there so that older kids can use the app to see the plan and communicate
-3. **Family/Group**: Self organized group of **individuals**.
-4. **Carpool Circle**: Carpool circles group **passengers** with specific schedules.  
-
-## 👥 Individual Personas/Roles
-
-1. **Parent / Family Admin**: Manages family profile, members, home location, and connects carpool circles/groups.
-2. **Driver**: Registers to drive specific commutes, views calculated optimal pickup routes/ETAs, streams live GPS updates, and dispatches delay alerts.
-3. **Passenger / Child**: Listed on schedules to be picked up and dropped off at activities.
+1. **Parent / Family Admin**: Manages family profile, member profiles (children/adults), home coordinates, and connects family members to carpool circles.
+2. **Driver**: Parent or authorized guardian who registers to drive specific activity commute occurrences, views optimized pickup routes, streams live location during active drives, and reports delays.
+3. **Passenger / Child**: Household member assigned to be picked up and dropped off for scheduled activities.
+4. **Organization / Activity Coordinator**: Coach, teacher, or community leader who creates activity calendars (iCal feeds), manages Matrix coordination spaces/rooms, and shares schedule links with parents.
+5. **Generic Mobile User**: A first-time or returning app user managing authentication, notification settings, theme preferences, and offline data sync.
 
 ---
 
 ## 📖 User Stories
 
-*(User stories will be added and expanded here during iteration)*
-### Persona: All
-- **US-001**: As an Individual, when I open the app the first time, I should be greeted by a Matrix login screen.
-- **US-002**: As an Individual, after logging in, the application should provide a list of Carpool Circles that the user is a member of.
-- **US-003**: As an Individual, I should be able to accept invitations to join Family/Groups and Carpool Circles
-
 ### Persona: Parent / Family Admin
-- **US-101**: As a Parent, I want to create and customize my family profile with members (using a Matrix room) and home coordinates so that my household can join carpool groups.
-- **US-102**: As a Parent, I want to create or join a Carpool Circle (using a Matrix room) so that I can coordinate commutes with other families privately.
+- **US-101 (Profile Management)**: As a Parent, I want to create and customize my family profile (family name, home address, geographic coordinates) so that my household can participate in local carpool routes.
+- **US-102 (Family Members)**: As a Parent, I want to add family members (children, secondary guardians) with designated roles so that they can be assigned to rides or driving duties.
+- **US-103 (Circle Joining)**: As a Parent, I want to create or join a Carpool Circle using a Matrix room invite so that I can coordinate rides securely with known families.
+- **US-104 (Ride Registration)**: As a Parent, I want to register my child for an upcoming activity commute so that assigned drivers know who needs a ride.
 
 ### Persona: Driver
-- **US-201**: As a Driver, I want to sign up to drive specific activity occurrences on the schedule so that passengers know who is driving.
-- **US-202**: As a Driver, I want to view an optimized pickup route and departure schedule so that I can pick up all riders efficiently.
-- **US-203**: As a Driver, I want to start an active drive that streams location updates and alerts passengers if I am delayed.
+- **US-201 (Drive Sign-up)**: As a Driver, I want to volunteer to drive a specific event occurrence on the schedule so that the group has an assigned driver.
+- **US-202 (Route Optimization)**: As a Driver, I want to view a Traveling Salesperson Problem (TSP) optimized pickup route and departure schedule based on registered passenger homes and the target destination.
+- **US-203 (Active Drive & Live Tracking)**: As a Driver, I want to initiate an "Active Drive" mode that streams my real-time GPS position to passenger families at scheduled intervals.
+- **US-204 (Delay Alerts)**: As a Driver, I want to trigger a delay alert (e.g. 5–10 min delay) that immediately notifies passenger parents via Matrix alerts.
+- **US-205 (Driver Replacement)**: As a Driver, I want to unassign myself from a drive if an emergency arises, prompting the circle to notify available drivers.
 
-### Persona: Passenger Parent / Rider
-- **US-301**: As a Passenger Parent, I want to register my child for upcoming carpool rides so that a driver can pick them up.
-- **US-302**: As a Passenger Parent, I want to view live ETAs and driver tracking during an active commute so that I know when my child will be picked up or dropped off.
+### Persona: Organization / Activity Coordinator
+- **US-301 (Calendar Feed Publishing)**: As an Activity Coordinator, I want to publish an iCalendar (`.ics`) feed URL for our club/school team so that parents can sync activity schedules automatically.
+- **US-302 (Circle Creation)**: As an Activity Coordinator, I want to set up an official Matrix carpool room for our organization and distribute join links/QR codes to participating families.
+- **US-303 (Schedule Overrides)**: As an Activity Coordinator, I want to push schedule changes or event cancelations via calendar updates so that all member devices update their local offline schedules automatically.
+
+### Persona: Generic Mobile User
+- **US-401 (Matrix Authentication & SSO)**: As a generic user, I want to log in using my Matrix homeserver credentials or OIDC / SSO single sign-on so that I don't need a separate app-specific backend account.
+- **US-402 (First-Time Onboarding & Empty States)**: As a generic user launching the app for the first time, I want a clear, step-by-step onboarding walkthrough and helpful empty states when no circles or schedules are configured yet.
+- **US-403 (Offline First Operation)**: As a generic user, I want full offline access to view schedules, routes, and family details even when I have no active internet connection.
+- **US-404 (Theme & Notification Customization)**: As a generic user, I want to customize application theme settings (Light Mode, Dark Mode, System Default) and notification alert sounds.
 
 ---
 
-## 🛠️ System & Non-Functional Requirements
+## 🛠️ Architectural & System Requirements
 
-1. **Decentralized Storage**: Operates entirely via Matrix rooms without custom backend servers.
-2. **Offline First**: Full offline schedule viewing and local state caching using SQLite.
-3. **Privacy & Security**: End-to-end encryption for all personal details, member names, and location coordinates.
-4. **Android Native Performance**: Responsive Material 3 / Material Design UI with native performance and clear empty state feedback.
+1. **Flutter 3 / Material 3 Core**: Built using Flutter 3 (Dart) targeting Android devices, adhering to Material Design 3 guidelines (`useMaterial3: true`).
+2. **Decentralized Matrix Paradigm**: Zero custom cloud backend servers. Shared group states, profiles, and sign-ups are stored in encrypted Matrix rooms (`m.room.state` and custom `org.carpool.*` payload messages).
+3. **Local SQLite Persistence**: Uses local SQLite database (`drift` / `sqflite`) for instant, offline-first data caching and optimistic UI updates.
+4. **Client-Side Route Engine**: Runs Haversine distance-based Traveling Salesperson Problem (TSP) waypoint optimization directly on the driver's device.
+5. **End-to-End Encryption (E2EE)**: End-to-end Megolm room encryption for child names, family addresses, coordinates, and schedules.
