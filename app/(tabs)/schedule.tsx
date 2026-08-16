@@ -10,12 +10,15 @@ import {
   useTheme,
   Divider,
   Icon,
+  IconButton,
 } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { db } from '../../db/client';
 import { localIcalEvents, cachedSignups, cachedFamilyMembers, cachedSchedules } from '../../db/schema';
 import { getSessionInfo, registerSignup, removeSignup, syncIcalFeed } from '../../utils/matrixClient';
 import { eq } from 'drizzle-orm';
+import EmptyState from '../../components/EmptyState';
+import OnboardingModal from '../../components/OnboardingModal';
 
 interface UIOccurrence {
   id: string;
@@ -38,6 +41,7 @@ export default function ScheduleScreen() {
   const [events, setEvents] = useState<UIOccurrence[]>([]);
   const [username, setUsername] = useState('');
   const [scheduleId, setScheduleId] = useState<string | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   const loadData = async () => {
     try {
@@ -217,93 +221,111 @@ export default function ScheduleScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      <Banner
-        visible={true}
-        icon="check-circle-outline"
-        style={styles.banner}
-      >
+      <Banner visible={true} icon="check-circle-outline" style={styles.banner}>
         Local Database Synced Offline
       </Banner>
 
-      <Text variant="titleLarge" style={styles.sectionHeader}>
-        Upcoming Commutes
-      </Text>
+      <View style={styles.headerRow}>
+        <Text variant="titleLarge" style={styles.sectionHeader}>
+          Upcoming Commutes
+        </Text>
+        <IconButton
+          icon="help-circle-outline"
+          size={22}
+          onPress={() => setShowOnboarding(true)}
+        />
+      </View>
 
-      {events.map((event) => (
-        <Card key={event.id} style={styles.card} mode="elevated">
-          <Card.Content>
-            <Text variant="titleMedium" style={styles.eventTitle}>
-              {event.title}
-            </Text>
-            <Text variant="bodyMedium" style={styles.eventTime}>
-              {event.timeText}
-            </Text>
+      {events.length === 0 ? (
+        <EmptyState
+          icon="calendar-month"
+          title="No Commutes Scheduled"
+          description="Sync an iCal feed from your school or club in Settings to automatically populate upcoming activities."
+          buttonText="Sync iCal Feed"
+          onButtonPress={loadData}
+        />
+      ) : (
+        events.map((event) => (
+          <Card key={event.id} style={styles.card} mode="elevated">
+            <Card.Content>
+              <Text variant="titleMedium" style={styles.eventTitle}>
+                {event.title}
+              </Text>
+              <Text variant="bodyMedium" style={styles.eventTime}>
+                {event.timeText}
+              </Text>
 
-            <Divider style={styles.divider} />
+              <Divider style={styles.divider} />
 
-            <View style={styles.participantSection}>
-              <View style={styles.infoRow}>
-                <Icon source="car" size={18} color={theme.colors.primary} />
-                <Text variant="bodyMedium" style={styles.subLabel}>
-                  Driver:{' '}
-                  <Text variant="bodyMedium" style={styles.val}>
-                    {event.driverName || 'No driver assigned yet'}
+              <View style={styles.participantSection}>
+                <View style={styles.infoRow}>
+                  <Icon source="car" size={18} color={theme.colors.primary} />
+                  <Text variant="bodyMedium" style={styles.subLabel}>
+                    Driver:{' '}
+                    <Text variant="bodyMedium" style={styles.val}>
+                      {event.driverName || 'No driver assigned yet'}
+                    </Text>
                   </Text>
-                </Text>
+                </View>
+
+                <View style={styles.infoRow}>
+                  <Icon source="account-group" size={18} color={theme.colors.secondary} />
+                  <Text variant="bodyMedium" style={styles.subLabel}>
+                    Riders:{' '}
+                    <Text variant="bodyMedium" style={styles.val}>
+                      {event.ridersNames.length > 0 ? event.ridersNames.join(', ') : 'No riders registered'}
+                    </Text>
+                  </Text>
+                </View>
               </View>
 
-              <View style={styles.infoRow}>
-                <Icon source="account-group" size={18} color={theme.colors.secondary} />
-                <Text variant="bodyMedium" style={styles.subLabel}>
-                  Riders:{' '}
-                  <Text variant="bodyMedium" style={styles.val}>
-                    {event.ridersNames.length > 0 ? event.ridersNames.join(', ') : 'No riders registered'}
-                  </Text>
-                </Text>
+              <View style={styles.chipRow}>
+                <Chip
+                  selected={event.userRole === 'rider'}
+                  onPress={() => toggleRide(event)}
+                  icon={event.userRole === 'rider' ? 'check' : 'human-child'}
+                  mode="outlined"
+                  style={styles.chip}
+                >
+                  {event.userRole === 'rider' ? 'Registered Ride' : 'Ride'}
+                </Chip>
+
+                <Chip
+                  selected={event.userRole === 'driver'}
+                  onPress={() => toggleDrive(event)}
+                  icon={event.userRole === 'driver' ? 'check' : 'steering'}
+                  mode="outlined"
+                  style={styles.chip}
+                >
+                  {event.userRole === 'driver' ? 'Driving Route' : 'Drive'}
+                </Chip>
               </View>
-            </View>
 
-            <View style={styles.chipRow}>
-              <Chip
-                selected={event.userRole === 'rider'}
-                onPress={() => toggleRide(event)}
-                icon={event.userRole === 'rider' ? 'check' : 'human-child'}
-                mode="outlined"
-                style={styles.chip}
-              >
-                {event.userRole === 'rider' ? 'Registered Ride' : 'Ride'}
-              </Chip>
+              {event.userRole === 'driver' && (
+                <Button
+                  mode="contained"
+                  buttonColor="#10b981"
+                  icon="navigation"
+                  style={styles.startDriveBtn}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/route-active',
+                      params: { scheduleId: event.scheduleId, eventTimestamp: event.timestamp.toString() },
+                    })
+                  }
+                >
+                  Start Driving Route
+                </Button>
+              )}
+            </Card.Content>
+          </Card>
+        ))
+      )}
 
-              <Chip
-                selected={event.userRole === 'driver'}
-                onPress={() => toggleDrive(event)}
-                icon={event.userRole === 'driver' ? 'check' : 'steering'}
-                mode="outlined"
-                style={styles.chip}
-              >
-                {event.userRole === 'driver' ? 'Driving Route' : 'Drive'}
-              </Chip>
-            </View>
-
-            {event.userRole === 'driver' && (
-              <Button
-                mode="contained"
-                buttonColor="#10b981"
-                icon="navigation"
-                style={styles.startDriveBtn}
-                onPress={() =>
-                  router.push({
-                    pathname: '/route-active',
-                    params: { scheduleId: event.scheduleId, eventTimestamp: event.timestamp.toString() },
-                  })
-                }
-              >
-                Start Driving Route
-              </Button>
-            )}
-          </Card.Content>
-        </Card>
-      ))}
+      <OnboardingModal
+        visible={showOnboarding}
+        onDismiss={() => setShowOnboarding(false)}
+      />
     </ScrollView>
   );
 }
@@ -328,10 +350,15 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 16,
   },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
   sectionHeader: {
     fontWeight: 'bold',
     color: '#0f172a',
-    marginBottom: 12,
   },
   card: {
     marginBottom: 16,

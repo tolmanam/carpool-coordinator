@@ -249,11 +249,36 @@ export default function RouteActiveScreen() {
       </Surface>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Dynamic Map Mock Surface */}
-        <Surface style={styles.mapMock} elevation={2}>
-          <Text variant="titleSmall" style={styles.mapText}>
-            [ Interactive Live Map Route ]
-          </Text>
+        {/* Dynamic Interactive Map Route Canvas */}
+        <Surface style={styles.mapCanvas} elevation={2}>
+          <View style={styles.mapHeaderRow}>
+            <View style={styles.mapBadge}>
+              <Icon source="map-search" size={16} color="#2563eb" />
+              <Text variant="labelMedium" style={styles.mapBadgeText}>
+                TSP Optimal Pickup Canvas
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.routeVisualContainer}>
+            <View style={styles.routePinRow}>
+              <View style={[styles.pinCircle, { backgroundColor: '#2563eb' }]}>
+                <Icon source="car" size={16} color="#ffffff" />
+              </View>
+              <View style={styles.routeLine} />
+              <View style={[styles.pinCircle, { backgroundColor: '#0284c7' }]}>
+                <Icon source="human-child" size={16} color="#ffffff" />
+              </View>
+              <View style={styles.routeLine} />
+              <View style={[styles.pinCircle, { backgroundColor: '#10b981' }]}>
+                <Icon source="flag-checkered" size={16} color="#ffffff" />
+              </View>
+            </View>
+            <Text variant="bodySmall" style={styles.routeVisualLabel}>
+              Driver Home ➔ Pickup Stops ➔ Destination
+            </Text>
+          </View>
+
           {activeDrive && (
             <View style={styles.liveTrackingPulse}>
               <View style={styles.pulseDot} />
@@ -372,22 +397,61 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 32,
   },
-  mapMock: {
+  mapCanvas: {
     height: 200,
-    backgroundColor: '#cbd5e1',
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: '#eff6ff',
+    borderRadius: 16,
+    padding: 16,
     marginBottom: 16,
     position: 'relative',
+    justifyContent: 'space-between',
   },
-  mapText: {
-    color: '#334155',
+  mapHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+  },
+  mapBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  mapBadgeText: {
     fontWeight: 'bold',
+    color: '#1e3a8a',
+  },
+  routeVisualContainer: {
+    alignItems: 'center',
+    marginVertical: 12,
+  },
+  routePinRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '80%',
+    justifyContent: 'center',
+  },
+  pinCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  routeLine: {
+    flex: 1,
+    height: 3,
+    backgroundColor: '#93c5fd',
+  },
+  routeVisualLabel: {
+    color: '#475569',
+    marginTop: 8,
+    fontWeight: '600',
   },
   liveTrackingPulse: {
-    position: 'absolute',
-    bottom: 12,
+    alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(15, 23, 42, 0.85)',
