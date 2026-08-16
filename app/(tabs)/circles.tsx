@@ -12,6 +12,7 @@ import {
 import { db } from '../../db/client';
 import { cachedSchedules, cachedFamilyMembers } from '../../db/schema';
 import { createCircle, inviteMember } from '../../utils/matrixClient';
+import EmptyState from '../../components/EmptyState';
 
 interface Circle {
   id: string;
@@ -98,38 +99,48 @@ export default function CirclesScreen() {
         Your Coordination Circles
       </Text>
 
-      {circles.map((item) => {
-        const isSelected = selectedCircleId === item.id;
-        return (
-          <Card
-            key={item.id}
-            style={[styles.circleCard, isSelected && styles.circleCardSelected]}
-            mode="elevated"
-            onPress={() => setSelectedCircleId(item.id)}
-          >
-            <Card.Content style={styles.cardContent}>
-              <View style={styles.cardInfo}>
-                <Text variant="titleMedium" style={styles.circleName}>
-                  {item.name}
-                </Text>
-
-                <View style={styles.metaRow}>
-                  <Icon source="shield-check" size={16} color="#10b981" />
-                  <Text variant="bodySmall" style={styles.circleMeta}>
-                    {item.membersCount} members • End-to-End Encrypted
+      {circles.length === 0 ? (
+        <EmptyState
+          icon="account-group"
+          title="No Circles Created"
+          description="Create a new coordination circle or accept a Matrix room invite to start sharing schedules with other families."
+          buttonText="Create Your First Circle"
+          onButtonPress={() => setNewCircleName('Neighborhood Carpool Circle')}
+        />
+      ) : (
+        circles.map((item) => {
+          const isSelected = selectedCircleId === item.id;
+          return (
+            <Card
+              key={item.id}
+              style={[styles.circleCard, isSelected && styles.circleCardSelected]}
+              mode="elevated"
+              onPress={() => setSelectedCircleId(item.id)}
+            >
+              <Card.Content style={styles.cardContent}>
+                <View style={styles.cardInfo}>
+                  <Text variant="titleMedium" style={styles.circleName}>
+                    {item.name}
                   </Text>
-                </View>
-              </View>
 
-              {isSelected && (
-                <Text variant="labelMedium" style={styles.activeIndicator}>
-                  ✓ Selected
-                </Text>
-              )}
-            </Card.Content>
-          </Card>
-        );
-      })}
+                  <View style={styles.metaRow}>
+                    <Icon source="shield-check" size={16} color="#10b981" />
+                    <Text variant="bodySmall" style={styles.circleMeta}>
+                      {item.membersCount} members • End-to-End Encrypted
+                    </Text>
+                  </View>
+                </View>
+
+                {isSelected && (
+                  <Text variant="labelMedium" style={styles.activeIndicator}>
+                    ✓ Selected
+                  </Text>
+                )}
+              </Card.Content>
+            </Card>
+          );
+        })
+      )}
 
       <Card style={styles.formCard} mode="elevated">
         <Card.Content style={styles.formContent}>
