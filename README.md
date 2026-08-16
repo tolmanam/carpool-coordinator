@@ -1,6 +1,6 @@
 # Carpool Coordinator - Matrix Edition
 
-An elegant, **fully decentralized, zero-cloud-cost**, offline-first solution for self-organized families, teams, and schools to coordinate carpooling, tracking, and schedules with absolute privacy using **Matrix**.
+An elegant, **fully decentralized, zero-cloud-cost**, offline-first mobile app built with **Flutter** for self-organized families, teams, and schools to coordinate carpooling, tracking, and schedules with absolute privacy using **Matrix**.
 
 ---
 
@@ -21,43 +21,36 @@ An elegant, **fully decentralized, zero-cloud-cost**, offline-first solution for
 ## ⚡ Quick Start Guide
 
 ### Prerequisites
-* **Node.js**: v18.x or v20.x or v22.x (LTS)
-* **npm**: v9+ or higher
-* **Java Development Kit (JDK)**: JDK 17 (for local Android APK builds)
-* **Android SDK / Android Studio**: (optional, required only for running on Android emulator or local native builds)
+* **Flutter SDK**: v3.41+ (channel stable)
+* **Dart SDK**: v3.11+
+* **Java Development Kit (JDK)**: JDK 17 (for local Android builds)
+* **Android SDK / Android Studio**: (required for running on Android emulator or native device builds)
 
 ---
 
 ### 🚀 Getting Started in 3 Steps
 
-#### 1. Clone the Repository & Install Dependencies
+#### 1. Clone the Repository & Get Flutter Dependencies
 ```bash
 git clone https://github.com/carpool-coordinator/carpool-coordinator.git
 cd carpool-coordinator
-npm install
+flutter pub get
 ```
 
 #### 2. Run Quality Checks & Unit Tests
-Run TypeScript type checking and the Jest test suite:
+Run Flutter unit and widget tests:
 ```bash
-# Type check TypeScript files
-npm run ts:check
-
-# Run unit tests (iCal parser, TSP route optimizer, Matrix helper, SQLite DB schema)
-npm test
+flutter test
 ```
 
-#### 3. Start the Local Expo Development Server
-Start the Expo Metro bundler to run the application on mobile devices or emulators:
+#### 3. Launch the Application
+Run the app on a connected Android device, emulator, or Linux desktop:
 ```bash
-# Start Metro bundler
-npm start
+# Run on connected mobile device or emulator
+flutter run
 
-# Run directly on connected Android device / emulator
-npm run android
-
-# Run directly on iOS simulator (macOS required)
-npm run ios
+# Run on Linux desktop
+flutter run -d linux
 ```
 
 ---
@@ -67,7 +60,7 @@ npm run ios
 * **Zero Hosting Costs**: Eliminates backends, servers, and central databases. The application runs entirely on your phone (client-side), storing decentralized states and messages directly inside **Matrix rooms**.
 * **Absolute Privacy**: Relies on Matrix's native **End-to-End Encryption (E2EE)** (Olm/Megolm) to encrypt children's names, home addresses, coordinates, and schedules, keeping them entirely invisible to homeserver admins.
 * **No Separate Identity Provider**: Uses standard Matrix accounts (e.g., from matrix.org or self-hosted servers) for instant secure authentication.
-* **Local-First & Offline Tolerant**: Clients function offline seamlessly using a local SQLite database, updating coordinates and schedules automatically when a network connection is resumed.
+* **Local-First & Offline Tolerant**: Clients function offline seamlessly using a local `sqflite` SQLite database, updating coordinates and schedules automatically when a network connection is resumed.
 
 ---
 
@@ -83,15 +76,21 @@ npm run ios
    * Runs local Traveling Salesperson Problem (TSP) algorithms directly on the driver's phone to plan the fastest pickup route and generate scheduled pickup ETAs.
 5. **Real-Time Tracking & Delay Warnings**
    * Streams ephemeral GPS positions directly into Matrix rooms during active carpools, calculating dynamic arrival times and dispatching immediate room alerts (`org.carpool.alert`) if running behind schedule (>5 minutes).
+6. **Driver Replacement & Participant Cancellation**
+   * Allows drivers to request replacements or unassign themselves in emergencies and enables parents to cancel/opt out child rides dynamically.
 
 ---
 
 ## 📁 Project Structure
 
-* `/app/` - React Native Expo Router screens with Material Design 3 UI (`app/index.tsx`, `app/(tabs)/`, `app/route-active.tsx`).
-* `/db/` - Local SQLite database configuration (`db/client.ts`) and Drizzle ORM schemas (`db/schema.ts`).
-* `/utils/` - Matrix REST API client helper (`matrixClient.ts`), iCal RFC 5545 parser (`icalParser.ts`), and TSP route optimizer (`routeOptimizer.ts`).
-* `/docs/` - Architecture diagrams, API specs, and application screenshots (`docs/screenshots/`).
+* `/lib/` - Flutter application source code.
+  * `main.dart` - App entry point with Material Design 3 theme configuration and Provider setup.
+  * `models/` - Data models (`Family`, `FamilyMember`, `Schedule`, `Signup`, `LocalIcalEvent`, `RouteWaypoint`).
+  * `screens/` - UI screens (`LoginScreen`, `MainTabScreen`, `ScheduleScreen`, `CirclesScreen`, `ActiveRouteScreen`, `SettingsScreen`, `OnboardingScreen`).
+  * `services/` - Core logic services (`DatabaseService` for SQLite, `MatrixService` for Matrix state, `IcalParserService`, `RouteOptimizerService`).
+  * `widgets/` - Reusable UI components (`EmptyStateWidget`).
+* `/test/` - Flutter unit and widget tests (`database_service_test.dart`, `ical_parser_service_test.dart`, `route_optimizer_service_test.dart`, `widgets_test.dart`, `user_stories_test.dart`).
+* `/docs/` - Architecture documentation, user stories, and application screenshots (`docs/screenshots/`).
 
 ---
 
@@ -100,31 +99,25 @@ npm run ios
 ### Automated GitHub Actions CD
 1. **Trigger Manual Build**: Navigate to **Actions** -> **CD - Build Android APK** -> **Run workflow** in GitHub.
 2. **Release Tag Build**: Push a git release tag starting with `v` (e.g. `git tag v1.0.0 && git push origin v1.0.0`).
-3. **Download APK**: Once the workflow completes, download `app-release.apk` directly from the published GitHub Release assets or workflow run artifacts, then install it directly on your Android device.
+3. **Download APK**: Download `app-release.apk` directly from the published GitHub Release assets or workflow run artifacts.
 
-### Local APK Build
+### Local Release APK Build
 ```bash
-# 1. Install dependencies
-npm install
-
-# 2. Prebuild native Android project
-npx expo prebuild --platform android --no-install
-
-# 3. Compile Release Android APK (Bundles JS code, dependencies, and assets)
-cd android
-./gradlew assembleRelease
+flutter build apk --release
 ```
-The generated standalone APK will be located at `android/app/build/outputs/apk/release/app-release.apk`.
+The generated APK will be located at `build/app/outputs/flutter-apk/app-release.apk`.
 
 ---
 
-## 🗺️ Roadmap
+## 🗺️ Roadmap & Future Enhancements
 
-- [x] **Phase 1: Local-First Core**
-  - Setup React Native / Expo with `expo-sqlite` and local iCal RFC 5545 parser.
-- [x] **Phase 2: Matrix Integration**
-  - Integrate Matrix REST API helper, implementing private room setups, user invitations, and custom state event (`org.carpool.family.profile`, `org.carpool.schedules`) sync.
-- [x] **Phase 3: Route Optimizer & Scheduler**
-  - Build local client-side route sequence solvers (greedy TSP solver using Haversine distance) to arrange pickup times.
-- [x] **Phase 4: Ephemeral Tracking & Notifications**
-  - Implement real-time coordinate streaming, active notifications, and dynamic late warnings via Matrix room messaging.
+- [x] **Phase 1: Flutter Rework & Local Storage**
+  - Migrated core application architecture to Flutter and Dart using Provider and `sqflite`.
+- [x] **Phase 2: Local iCal Parser & TSP Route Optimizer**
+  - RFC 5545 iCal feed parser and greedy Traveling Salesperson Problem (TSP) route optimizer with Haversine distance.
+- [x] **Phase 3: User Stories & Test Coverage**
+  - Added unit/widget tests for all user stories including driver replacements and participant cancellations.
+- [ ] **Phase 4: Native Matrix SDK Bindings (E2EE Megolm)**
+  - Integrate native `matrix-rust-sdk` Dart FFI bindings for full zero-trust Olm/Megolm E2EE encrypted sync with Matrix homeservers.
+- [ ] **Phase 5: Background Location Streaming & Push Notifications**
+  - Implement native Android background location tasks (`flutter_background_service`) and Matrix Push Gateway notifications for delay alerts.

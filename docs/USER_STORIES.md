@@ -7,7 +7,7 @@ This document captures the complete set of user stories, personas, and system re
 ## 👥 Personas
 
 1. **Parent / Family Admin**: Manages family profile, member profiles (children/adults), home coordinates, and connects family members to carpool circles.
-2. **Driver**: Parent or authorized guardian who registers to drive specific activity commute occurrences, views optimized pickup routes, streams live location during active drives, and reports delays.
+2. **Driver**: Parent or authorized guardian who registers to drive specific activity commute occurrences, views optimized pickup routes, streams live location during active drives, reports delays, or requests driver changes/handoffs.
 3. **Passenger / Child**: Household member assigned to be picked up and dropped off for scheduled activities.
 4. **Organization / Activity Coordinator**: Coach, teacher, or community leader who creates activity calendars (iCal feeds), manages Matrix coordination spaces/rooms, and shares schedule links with parents.
 5. **Generic Mobile User**: A first-time or returning app user managing authentication, notification settings, theme preferences, and offline data sync.
@@ -21,13 +21,14 @@ This document captures the complete set of user stories, personas, and system re
 - **US-102 (Family Members)**: As a Parent, I want to add family members (children, secondary guardians) with designated roles so that they can be assigned to rides or driving duties.
 - **US-103 (Circle Joining)**: As a Parent, I want to create or join a Carpool Circle using a Matrix room invite so that I can coordinate rides securely with known families.
 - **US-104 (Ride Registration)**: As a Parent, I want to register my child for an upcoming activity commute so that assigned drivers know who needs a ride.
+- **US-105 (Participant Drop Out / Cancellation)**: As a Parent, I want to cancel my child's registration or opt them out of an activity drive (e.g. child is sick or has alternate transportation) so that the driver's route and vehicle capacity update immediately.
 
 ### Persona: Driver
 - **US-201 (Drive Sign-up)**: As a Driver, I want to volunteer to drive a specific event occurrence on the schedule so that the group has an assigned driver.
 - **US-202 (Route Optimization)**: As a Driver, I want to view a Traveling Salesperson Problem (TSP) optimized pickup route and departure schedule based on registered passenger homes and the target destination.
 - **US-203 (Active Drive & Live Tracking)**: As a Driver, I want to initiate an "Active Drive" mode that streams my real-time GPS position to passenger families at scheduled intervals.
 - **US-204 (Delay Alerts)**: As a Driver, I want to trigger a delay alert (e.g. 5–10 min delay) that immediately notifies passenger parents via Matrix alerts.
-- **US-205 (Driver Replacement)**: As a Driver, I want to unassign myself from a drive if an emergency arises, prompting the circle to notify available drivers.
+- **US-205 (Driver Replacement / Drive Change)**: As a Driver, I want to unassign or replace myself from a scheduled drive if an emergency arises, allowing another parent to step in and take over driving duties.
 
 ### Persona: Organization / Activity Coordinator
 - **US-301 (Calendar Feed Publishing)**: As an Activity Coordinator, I want to publish an iCalendar (`.ics`) feed URL for our club/school team so that parents can sync activity schedules automatically.
