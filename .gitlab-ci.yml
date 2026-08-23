@@ -1,0 +1,27 @@
+image: ghcr.io/cirrusci/flutter:stable
+
+stages:
+  - test
+  - build
+
+variables:
+  PUB_BUILD_DIR: "build"
+
+before_script:
+  - flutter doctor -v
+  - flutter pub get
+
+unit_tests:
+  stage: test
+  script:
+    - flutter test
+
+build_apk:
+  stage: build
+  script:
+    - flutter build apk --release
+  artifacts:
+    name: "app-release-$CI_COMMIT_REF_SLUG"
+    paths:
+      - build/app/outputs/flutter-apk/app-release.apk
+    expire_in: 1 week
