@@ -92,4 +92,3 @@ The repository includes automated CI/CD pipeline definitions for both **GitLab C
 ### GitHub Actions (`.github/workflows/`)
 - `ci.yml`: Runs on every push or pull request to execute `flutter test` and static linting.
 - `cd.yml`: Triggers on release tags (`v*`) or manual dispatch to compile `app-release.apk` and publish GitHub Release artifacts automatically.
-- `gitlab_ci.yml`: Automated GitHub mirror workflow verifying GitLab CI configuration parity.
