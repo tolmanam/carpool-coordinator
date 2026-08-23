@@ -96,10 +96,11 @@ flutter run -d linux
 
 ## 📱 Building & Testing the Android APK
 
-### Automated GitHub Actions CD
-1. **Trigger Manual Build**: Navigate to **Actions** -> **CD - Build Android APK** -> **Run workflow** in GitHub.
-2. **Release Tag Build**: Push a git release tag starting with `v` (e.g. `git tag v1.0.0 && git push origin v1.0.0`).
-3. **Download APK**: Download `app-release.apk` directly from the published GitHub Release assets or workflow run artifacts.
+### Automated GitLab CI & GitHub Actions CD
+1. **GitLab CI Pipeline**: Automated build pipeline configured in `.gitlab-ci.yml` runs `flutter test` and compiles `app-release.apk` build artifacts on push.
+2. **Trigger Manual Build**: Navigate to **Actions** -> **CD - Build Android APK** -> **Run workflow** in GitHub.
+3. **Release Tag Build**: Push a git release tag starting with `v` (e.g. `git tag v1.0.0 && git push origin v1.0.0`).
+4. **Download APK**: Download `app-release.apk` directly from published release assets or workflow artifacts.
 
 ### Local Release APK Build
 ```bash

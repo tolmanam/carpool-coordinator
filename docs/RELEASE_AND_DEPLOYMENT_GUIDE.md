@@ -83,6 +83,13 @@ When expanding to iOS devices:
 
 ## 🔄 Automated CI/CD Workflows
 
-The repository includes GitHub Actions CI/CD pipeline definitions in `.github/workflows/`:
-- `ci.yml`: Runs on every push or pull request to run `flutter test` and static linting.
+The repository includes automated CI/CD pipeline definitions for both **GitLab CI** and **GitHub Actions**:
+
+### GitLab CI (`.gitlab-ci.yml`)
+- `unit_tests`: Runs `flutter test` on all branch updates using the `ghcr.io/cirrusci/flutter:stable` Docker image.
+- `build_apk`: Compiles `flutter build apk --release` and exposes the build artifacts (`app-release.apk`) for download.
+
+### GitHub Actions (`.github/workflows/`)
+- `ci.yml`: Runs on every push or pull request to execute `flutter test` and static linting.
 - `cd.yml`: Triggers on release tags (`v*`) or manual dispatch to compile `app-release.apk` and publish GitHub Release artifacts automatically.
+- `gitlab_ci.yml`: Automated GitHub mirror workflow verifying GitLab CI configuration parity.
