@@ -98,7 +98,7 @@ class MatrixService extends ChangeNotifier {
   }
 
   // --- Circle & Room Operations ---
-  Future<String> createCircle(String title) async {
+  Future<String> createCircle(String title, {String? homeserverUrl}) async {
     final scheduleId = 'sched_${DateTime.now().millisecondsSinceEpoch}';
     final schedule = Schedule(
       scheduleId: scheduleId,
@@ -107,6 +107,7 @@ class MatrixService extends ChangeNotifier {
       latitude: 34.0415,
       longitude: -118.4520,
       addressText: 'Westside Community Center',
+      homeserverUrl: homeserverUrl ?? _homeserver,
     );
     await dbService.insertSchedule(schedule);
     notifyListeners();
