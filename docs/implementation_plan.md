@@ -105,3 +105,12 @@ The coding agent should implement the features in the following precise sequence
   1. Secure SQLite data at rest by binding the db instance with a local device encryption key managed via `expo-secure-store`.
   2. Implement secure OIDC/SSO authentication flow.
   3. Activate E2EE: establish standard Olm/Megolm end-to-end room encryption for all `org.carpool.*` communication, ensuring all children coordinates, profile names, and schedules remain encrypted and hidden from homeserver admins.
+
+---
+
+## 5. Deployment & Mobile Installation Plan
+
+1. **Android Application Package**: Application ID configured as `org.carpool.coordinator` in `android/app/build.gradle` and `AndroidManifest.xml`.
+2. **Permissions**: Android location (`ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`) and internet permissions configured for device testing.
+3. **Multi-Homeserver Matrix Configuration**: Default homeserver set to `https://matrix.org` while enabling custom homeserver URLs per circle/schedule.
+4. **Release Documentation**: Complete guide published at `docs/RELEASE_AND_DEPLOYMENT_GUIDE.md`.

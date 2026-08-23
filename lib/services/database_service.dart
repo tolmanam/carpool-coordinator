@@ -59,7 +59,8 @@ class DatabaseService extends ChangeNotifier {
             ical_feed_url TEXT,
             latitude REAL NOT NULL,
             longitude REAL NOT NULL,
-            address_text TEXT
+            address_text TEXT,
+            homeserver_url TEXT DEFAULT 'https://matrix.org'
           )
         ''');
 

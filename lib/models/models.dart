@@ -69,6 +69,7 @@ class Schedule {
   final double latitude;
   final double longitude;
   final String addressText;
+  final String homeserverUrl;
 
   Schedule({
     required this.scheduleId,
@@ -77,6 +78,7 @@ class Schedule {
     required this.latitude,
     required this.longitude,
     required this.addressText,
+    this.homeserverUrl = 'https://matrix.org',
   });
 
   Map<String, dynamic> toMap() => {
@@ -86,6 +88,7 @@ class Schedule {
         'latitude': latitude,
         'longitude': longitude,
         'address_text': addressText,
+        'homeserver_url': homeserverUrl,
       };
 
   factory Schedule.fromMap(Map<String, dynamic> map) => Schedule(
@@ -95,6 +98,7 @@ class Schedule {
         latitude: (map['latitude'] as num).toDouble(),
         longitude: (map['longitude'] as num).toDouble(),
         addressText: map['address_text'] as String? ?? '',
+        homeserverUrl: map['homeserver_url'] as String? ?? 'https://matrix.org',
       );
 }
 
