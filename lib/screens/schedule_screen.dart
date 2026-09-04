@@ -31,25 +31,26 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
 
   Future<void> _loadData() async {
     final db = Provider.of<DatabaseService>(context, listen: false);
-    final matrix = Provider.of<MatrixService>(context, listen: false);
 
     final schedules = await db.getSchedules();
+    List<LocalIcalEvent> events = [];
+    List<Signup> signups = [];
 
     if (schedules.isNotEmpty) {
       _activeSchedule = schedules.first;
-      var events = await db.getIcalEvents(_activeSchedule!.scheduleId);
-      _events = events;
+      events = await db.getIcalEvents(_activeSchedule!.scheduleId);
+      signups = await db.getSignups(_activeSchedule!.scheduleId);
     } else {
       _activeSchedule = null;
-      _events = [];
     }
 
-    _signups = await db.getSignups(_activeSchedule!.scheduleId);
-    _members = await db.getAllFamilyMembers();
+    final members = await db.getAllFamilyMembers();
 
     if (mounted) {
       setState(() {
         _events = events;
+        _signups = signups;
+        _members = members;
         _isLoading = false;
       });
     }
