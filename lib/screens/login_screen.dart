@@ -36,21 +36,41 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void _handleSSOLogin() async {
+  void _handleSSOLogin() {
     final matrixService = Provider.of<MatrixService>(context, listen: false);
-    setState(() => _isLoading = true);
+    final redirectUrl = matrixService.getSsoRedirectUrl(
+      homeserverUrl: _homeserverController.text,
+    );
 
-    try {
-      await matrixService.loginSSO(homeserverUrl: _homeserverController.text);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('SSO login failed: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('SSO / OIDC Authentication'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Redirecting to Matrix Homeserver SSO Endpoint:\n',
+            ),
+            SelectableText(
+              redirectUrl,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Authenticate with your identity provider to log in.',
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
