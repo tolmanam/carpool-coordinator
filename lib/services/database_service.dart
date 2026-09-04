@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
 import 'package:path/path.dart' as p;
 
 import '../models/models.dart';
@@ -18,7 +19,11 @@ class DatabaseService extends ChangeNotifier {
   Future<void> initDatabase({String? inMemoryPath}) async {
     if (_db != null) return;
 
-    final String path = inMemoryPath ?? p.join(await getDatabasesPath(), 'carpool_coordinator.db');
+    if (kIsWeb) {
+      databaseFactory = databaseFactoryFfiWeb;
+    }
+
+    final String path = inMemoryPath ?? (kIsWeb ? 'carpool_coordinator.db' : p.join(await getDatabasesPath(), 'carpool_coordinator.db'));
 
     _db = await openDatabase(
       path,
