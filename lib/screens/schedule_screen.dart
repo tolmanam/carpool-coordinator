@@ -33,46 +33,15 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     final db = Provider.of<DatabaseService>(context, listen: false);
     final matrix = Provider.of<MatrixService>(context, listen: false);
 
-    var schedules = await db.getSchedules();
-    if (schedules.isEmpty) {
-      final defaultSched = Schedule(
-        scheduleId: 'sched_soccer_practice',
-        title: 'Westside Soccer Family Club',
-        icalFeedUrl: '',
-        latitude: 34.0415,
-        longitude: -118.4520,
-        addressText: 'Clover Park Field 2',
-      );
-      await db.insertSchedule(defaultSched);
-      schedules = await db.getSchedules();
-    }
+    final schedules = await db.getSchedules();
 
-    _activeSchedule = schedules.first;
-
-    var events = await db.getIcalEvents(_activeSchedule!.scheduleId);
-    if (events.isEmpty) {
-      final now = DateTime.now();
-      final sampleStart = DateTime(now.year, now.month, now.day, 16, 30);
-      final sampleEnd = sampleStart.add(const Duration(hours: 1, minutes: 30));
-
-      events = [
-        LocalIcalEvent(
-          id: 'evt_sample_1',
-          scheduleId: _activeSchedule!.scheduleId,
-          title: 'U10 Soccer Practice',
-          startTime: sampleStart.millisecondsSinceEpoch,
-          endTime: sampleEnd.millisecondsSinceEpoch,
-        ),
-        LocalIcalEvent(
-          id: 'evt_sample_2',
-          scheduleId: _activeSchedule!.scheduleId,
-          title: 'Weekend Tournament Game',
-          startTime: sampleStart.add(const Duration(days: 2)).millisecondsSinceEpoch,
-          endTime: sampleEnd.add(const Duration(days: 2)).millisecondsSinceEpoch,
-        ),
-      ];
-      await db.insertIcalEvents(events);
-      events = await db.getIcalEvents(_activeSchedule!.scheduleId);
+    if (schedules.isNotEmpty) {
+      _activeSchedule = schedules.first;
+      var events = await db.getIcalEvents(_activeSchedule!.scheduleId);
+      _events = events;
+    } else {
+      _activeSchedule = null;
+      _events = [];
     }
 
     _signups = await db.getSignups(_activeSchedule!.scheduleId);

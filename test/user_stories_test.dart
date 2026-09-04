@@ -134,12 +134,11 @@ void main() {
     test('US-401 & US-403: Matrix Authentication & Offline First Sync', () async {
       expect(matrixService.isLoggedIn, isFalse);
 
+      matrixService.toggleOfflineMode(true);
       await matrixService.login('@testuser:matrix.org', 'password123', homeserverUrl: 'https://matrix.org');
 
       expect(matrixService.isLoggedIn, isTrue);
       expect(matrixService.username, equals('@testuser:matrix.org'));
-
-      matrixService.toggleOfflineMode(true);
       expect(matrixService.isOffline, isTrue);
 
       // Verify offline data settings retrieval works from local SQLite
