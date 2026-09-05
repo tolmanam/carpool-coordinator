@@ -6,22 +6,22 @@ This document captures the complete set of user stories, personas, and system re
 
 ## 👥 Personas
 
-1. **Parent / Family Admin**: Manages family profile, member profiles (children/adults), home coordinates, and connects family members to carpool circles.
-2. **Driver**: Parent or authorized guardian who registers to drive specific activity commute occurrences, views optimized pickup routes, streams live location during active drives, reports delays, or requests driver changes/handoffs.
-3. **Passenger / Child**: Household member assigned to be picked up and dropped off for scheduled activities.
-4. **Organization / Activity Coordinator**: Coach, teacher, or community leader who creates activity calendars (iCal feeds), manages Matrix coordination spaces/rooms, and shares schedule links with parents.
-5. **Generic Mobile User**: A first-time or returning app user managing authentication, notification settings, theme preferences, and offline data sync.
+1. **Parent / Family Admin**: Manages family profile (supports families as small as a single adult), member profiles, home coordinates, and connects family members to organizations and carpool circles.
+2. **Individual / Family Member**: An individual household member with customizable profile attributes (adult status, driving capability, optional Matrix ID, email, phone, avatar, emergency contact).
+3. **Driver**: Adult family member who registers to drive specific activity commute occurrences, views optimized pickup routes, streams live location and status updates during active drives.
+4. **Organization / Activity Coordinator**: Coach, teacher, or community leader who creates Organizations with shared schedules (iCal feeds) and manages Matrix Spaces tagged with Carpool Coordinator metadata.
+5. **Generic Mobile User**: A first-time or returning app user managing authentication, notification settings, theme preferences, group chat, and offline data sync.
 
 ---
 
 ## 📖 User Stories
 
-### Persona: Parent / Family Admin
-- **US-101 (Profile Management)**: As a Parent, I want to create and customize my family profile (family name, home address, geographic coordinates) so that my household can participate in local carpool routes.
-- **US-102 (Family Members)**: As a Parent, I want to add family members (children, secondary guardians) with designated roles so that they can be assigned to rides or driving duties.
-- **US-103 (Circle Joining)**: As a Parent, I want to create or join a Carpool Circle using a Matrix room invite so that I can coordinate rides securely with known families.
-- **US-104 (Ride Registration)**: As a Parent, I want to register my child for an upcoming activity commute so that assigned drivers know who needs a ride.
-- **US-105 (Participant Drop Out / Cancellation)**: As a Parent, I want to cancel my child's registration or opt them out of an activity drive (e.g. child is sick or has alternate transportation) so that the driver's route and vehicle capacity update immediately.
+### Persona: Parent / Family Admin & Individual Profiles
+- **US-101 (Profile Management)**: As a Family Admin, I want to create and customize my family profile (family name, home address, geographic coordinates) so that my household can participate in local carpool routes.
+- **US-102 (Family Members & Profiles)**: As a Family Admin, I want to manage individual family members (adults, children, driving capability, optional email, phone, avatar, emergency contact, and private Matrix ID) so that members can be assigned to organizations and drives.
+- **US-103 (Organization & Circle Joining)**: As a Family Admin, I want to join an Organization and create or join Carpool Circles (as subdivisions under an Organization) using email invites or space links.
+- **US-104 (Organization Participant Assignment)**: As a Family Admin, I want to designate specific individual family members as Participants for an Organization (e.g., assigning a specific child to gymnastics or an adult to a bowling club).
+- **US-105 (Ride Registration & Cancellation)**: As a Family Admin, I want to register or cancel a participant for an upcoming activity drive so that assigned drivers know who needs a ride.
 
 ### Persona: Driver
 - **US-201 (Drive Sign-up)**: As a Driver, I want to volunteer to drive a specific event occurrence on the schedule so that the group has an assigned driver.
@@ -31,14 +31,14 @@ This document captures the complete set of user stories, personas, and system re
 - **US-205 (Driver Replacement / Drive Change)**: As a Driver, I want to unassign or replace myself from a scheduled drive if an emergency arises, allowing another parent to step in and take over driving duties.
 
 ### Persona: Organization / Activity Coordinator
-- **US-301 (Calendar Feed Publishing)**: As an Activity Coordinator, I want to publish an iCalendar (`.ics`) feed URL for our club/school team so that parents can sync activity schedules automatically.
-- **US-302 (Circle Creation)**: As an Activity Coordinator, I want to set up an official Matrix carpool room for our organization and distribute join links/QR codes to participating families.
+- **US-301 (Organization & Schedule Setup)**: As an Activity Coordinator, I want to create an Organization with a Matrix Space (`m.space` tagged with Carpool Coordinator properties) and attach an iCalendar (`.ics`) feed URL so all member circles share the team schedule.
+- **US-302 (Subdivision into Carpool Circles)**: As an Activity Coordinator or Parent, I want to subdivide an Organization into smaller, overlapping Carpool Circles where families coordinate specific pickup/dropoff responsibilities.
 - **US-303 (Schedule Overrides)**: As an Activity Coordinator, I want to push schedule changes or event cancelations via calendar updates so that all member devices update their local offline schedules automatically.
 
-### Persona: Generic Mobile User
-- **US-401 (Matrix Authentication & SSO)**: As a generic user, I want to log in using my Matrix homeserver credentials or OIDC / SSO single sign-on so that I don't need a separate app-specific backend account.
-- **US-402 (First-Time Onboarding & Empty States)**: As a generic user launching the app for the first time, I want a clear, step-by-step onboarding walkthrough and helpful empty states when no circles or schedules are configured yet.
-- **US-403 (Offline First Operation)**: As a generic user, I want full offline access to view schedules, routes, and family details even when I have no active internet connection.
+### Persona: Generic Mobile User & Group Messaging
+- **US-401 (Matrix Authentication & SSO)**: As a generic user, I want to log in using my Matrix homeserver credentials so that I don't need a separate app-specific backend account.
+- **US-402 (Group Chat & Messaging)**: As a generic user, I want to participate in basic group chat rooms for my Family, Organizations, and Carpool Circles without enabling direct 1-on-1 messaging between individuals.
+- **US-403 (Offline First Operation)**: As a generic user, I want full offline access to view schedules, routes, organization circles, and family details even when I have no active internet connection.
 - **US-404 (Theme & Notification Customization)**: As a generic user, I want to customize application theme settings (Light Mode, Dark Mode, System Default) and notification alert sounds.
 
 ---

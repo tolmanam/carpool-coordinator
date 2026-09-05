@@ -26,14 +26,43 @@ Defines a household's profile. Sent with the state key as the Matrix User ID of 
       {
         "id": "member_connor_1",
         "name": "John Connor",
-        "role": "child"
+        "role": "child",
+        "is_adult": false,
+        "can_drive": false,
+        "email": "john@example.com",
+        "phone": "555-0199",
+        "avatar_url": "",
+        "emergency_contact": "Sarah Connor (555-0100)",
+        "matrix_id": ""
       },
       {
         "id": "member_connor_2",
         "name": "Sarah Connor",
-        "role": "parent"
+        "role": "parent",
+        "is_adult": true,
+        "can_drive": true,
+        "email": "sarah@example.com",
+        "phone": "555-0100",
+        "avatar_url": "",
+        "emergency_contact": "Kyle Reese (555-0101)",
+        "matrix_id": "@sarah:matrix.org"
       }
     ]
+  }
+}
+
+### 1.1b. `org.carpool.organization` (Space / State Event)
+Defines an Organization space containing shared schedules and child Carpool Circle rooms.
+
+```json
+{
+  "type": "org.carpool.organization",
+  "state_key": "",
+  "content": {
+    "org_id": "org_westside_soccer",
+    "name": "Westside Soccer Club",
+    "ical_feed_url": "https://sports-club.org/calendars/u10.ics",
+    "is_carpool_org": true
   }
 }
 ```

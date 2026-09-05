@@ -499,4 +499,160 @@ class MatrixService extends ChangeNotifier {
     }
     notifyListeners();
   }
+
+  // --- Organization, Space & Group Chat Operations ---
+
+  Future<Organization> createOrganization(String name, String icalFeedUrl) async {
+    String spaceId = 'org_${DateTime.now().millisecondsSinceEpoch}';
+
+    if (!_isOffline && _isLoggedIn) {
+      final createUri = Uri.parse('$_homeserver/_matrix/client/v3/createRoom');
+      final response = await _client.post(
+        createUri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $_accessToken',
+        },
+        body: jsonEncode({
+          'name': name,
+          'preset': 'public_chat',
+          'creation_content': {
+            'type': 'm.space',
+          },
+          'initial_state': [
+            {
+              'type': 'org.carpool.organization',
+              'state_key': '',
+              'content': {
+                'name': name,
+                'ical_feed_url': icalFeedUrl,
+                'is_carpool_org': true,
+              },
+            },
+          ],
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        spaceId = data['room_id'] as String;
+      }
+    }
+
+    final org = Organization(
+      orgId: spaceId,
+      name: name,
+      icalFeedUrl: icalFeedUrl,
+      matrixSpaceId: spaceId,
+      homeserverUrl: _homeserver,
+    );
+
+    await dbService.insertOrganization(org);
+
+    // Also register schedule for the org's ical feed
+    final schedule = Schedule(
+      scheduleId: org.orgId,
+      title: org.name,
+      icalFeedUrl: org.icalFeedUrl,
+      latitude: 34.0415,
+      longitude: -118.4520,
+      addressText: org.name,
+      homeserverUrl: org.homeserverUrl,
+    );
+    await dbService.insertSchedule(schedule);
+
+    notifyListeners();
+    return org;
+  }
+
+  Future<CarpoolCircle> createCircleForOrg(String orgId, String circleName, String pickupAddress) async {
+    String circleRoomId = 'circle_${DateTime.now().millisecondsSinceEpoch}';
+
+    if (!_isOffline && _isLoggedIn) {
+      final createUri = Uri.parse('$_homeserver/_matrix/client/v3/createRoom');
+      final response = await _client.post(
+        createUri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $_accessToken',
+        },
+        body: jsonEncode({
+          'name': circleName,
+          'preset': 'private_chat',
+          'visibility': 'private',
+          'initial_state': [
+            {
+              'type': 'm.room.encryption',
+              'state_key': '',
+              'content': {
+                'algorithm': 'm.megolm.v1.aes-sha2',
+              },
+            },
+          ],
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        circleRoomId = data['room_id'] as String;
+
+        // Link circle room as child of org space
+        final linkUri = Uri.parse('$_homeserver/_matrix/client/v3/rooms/$orgId/state/m.space.child/$circleRoomId');
+        await _client.put(
+          linkUri,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $_accessToken',
+          },
+          body: jsonEncode({
+            'via': [Uri.parse(_homeserver).host],
+          }),
+        );
+      }
+    }
+
+    final circle = CarpoolCircle(
+      circleId: circleRoomId,
+      orgId: orgId,
+      name: circleName,
+      matrixRoomId: circleRoomId,
+      pickupAddress: pickupAddress,
+    );
+
+    await dbService.insertCarpoolCircle(circle);
+    notifyListeners();
+    return circle;
+  }
+
+  Future<void> sendChatMessage(String roomId, String content, String senderName) async {
+    final msgId = 'msg_${DateTime.now().millisecondsSinceEpoch}';
+    final chatMsg = ChatMessage(
+      id: msgId,
+      roomId: roomId,
+      senderId: _username.isNotEmpty ? _username : 'user_local',
+      senderName: senderName,
+      content: content,
+      timestamp: DateTime.now().millisecondsSinceEpoch,
+    );
+
+    await dbService.insertChatMessage(chatMsg);
+
+    if (!_isOffline && _isLoggedIn) {
+      final txnId = 'm${DateTime.now().millisecondsSinceEpoch}';
+      final uri = Uri.parse('$_homeserver/_matrix/client/v3/rooms/$roomId/send/m.room.message/$txnId');
+
+      await _client.put(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $_accessToken',
+        },
+        body: jsonEncode({
+          'msgtype': 'm.text',
+          'body': content,
+        }),
+      );
+    }
+    notifyListeners();
+  }
 }

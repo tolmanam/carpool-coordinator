@@ -38,6 +38,11 @@ void main() {
         matrixId: '@alice:matrix.org',
         name: 'John Connor',
         role: 'child',
+        isAdult: false,
+        canDrive: false,
+        email: 'john@example.com',
+        phone: '555-0199',
+        emergencyContact: 'Sarah Connor',
       );
 
       await dbService.insertFamilyMember(member);
@@ -45,6 +50,58 @@ void main() {
 
       expect(members.length, equals(1));
       expect(members.first.name, equals('John Connor'));
+      expect(members.first.isAdult, isFalse);
+      expect(members.first.email, equals('john@example.com'));
+    });
+
+    test('Organization, Carpool Circles, Participants and Chat Messages CRUD', () async {
+      final org = Organization(
+        orgId: 'org_1',
+        name: 'Westside Gymnastics',
+        icalFeedUrl: 'https://example.com/gymnastics.ics',
+      );
+      await dbService.insertOrganization(org);
+
+      final fetchedOrg = await dbService.getOrganization('org_1');
+      expect(fetchedOrg, isNotNull);
+      expect(fetchedOrg!.name, equals('Westside Gymnastics'));
+
+      final circle = CarpoolCircle(
+        circleId: 'circle_1',
+        orgId: 'org_1',
+        name: 'Tuesday Carpool Circle',
+      );
+      await dbService.insertCarpoolCircle(circle);
+
+      final circles = await dbService.getCarpoolCircles('org_1');
+      expect(circles.length, equals(1));
+      expect(circles.first.name, equals('Tuesday Carpool Circle'));
+
+      final participant = OrganizationParticipant(
+        id: 'p_1',
+        orgId: 'org_1',
+        memberId: 'mem_1',
+        circleId: 'circle_1',
+      );
+      await dbService.insertOrgParticipant(participant);
+
+      final participants = await dbService.getOrgParticipants('org_1');
+      expect(participants.length, equals(1));
+      expect(participants.first.memberId, equals('mem_1'));
+
+      final chatMsg = ChatMessage(
+        id: 'msg_1',
+        roomId: 'circle_1',
+        senderId: '@alice:matrix.org',
+        senderName: 'Alice',
+        content: 'Hi everyone!',
+        timestamp: 1698391800000,
+      );
+      await dbService.insertChatMessage(chatMsg);
+
+      final msgs = await dbService.getChatMessages('circle_1');
+      expect(msgs.length, equals(1));
+      expect(msgs.first.content, equals('Hi everyone!'));
     });
 
     test('Insert and retrieve schedule and signups', () async {
