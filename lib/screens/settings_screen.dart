@@ -113,6 +113,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   Text('Signed in as: ${matrix.username}', style: const TextStyle(fontWeight: FontWeight.bold)),
                   Text('Homeserver: ${matrix.homeserver}', style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
+                  if (matrix.deviceId.isNotEmpty)
+                    Text('Current Device ID: ${matrix.deviceId}', style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 12)),
                   const Divider(height: 24),
 
                   Text('Notification Sound', style: theme.textTheme.labelLarge),
@@ -135,7 +137,92 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 16),
 
           Text(
-            '2. Profile Configuration',
+            '2. Matrix Device Verification & Trust',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Registered Sessions (${matrix.devices.length})', style: theme.textTheme.labelLarge),
+                      IconButton(
+                        icon: const Icon(Icons.refresh, size: 20),
+                        onPressed: () => matrix.fetchDevices(),
+                        tooltip: 'Refresh Device List',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  if (matrix.devices.isEmpty)
+                    const Text('No registered devices found.')
+                  else
+                    ...matrix.devices.map((device) {
+                      final isCurrent = device.deviceId == matrix.deviceId;
+                      Color statusColor = Colors.orange;
+                      if (device.verificationStatus == 'Verified') statusColor = Colors.green;
+                      if (device.verificationStatus == 'Blocked') statusColor = Colors.red;
+
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: theme.colorScheme.outlineVariant),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              device.verificationStatus == 'Verified'
+                                  ? Icons.verified_user
+                                  : (device.verificationStatus == 'Blocked' ? Icons.block : Icons.gpp_maybe),
+                              color: statusColor,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${device.displayName}${isCurrent ? ' (This Device)' : ''}',
+                                    style: const TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                  Text(
+                                    'ID: ${device.deviceId} • Status: ${device.verificationStatus}',
+                                    style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            PopupMenuButton<String>(
+                              onSelected: (val) => matrix.verifyDevice(device.deviceId, val),
+                              itemBuilder: (ctx) => [
+                                const PopupMenuItem(value: 'Verified', child: Text('Mark as Verified')),
+                                const PopupMenuItem(value: 'Unverified', child: Text('Mark as Unverified')),
+                                const PopupMenuItem(value: 'Blocked', child: Text('Block Device')),
+                              ],
+                              icon: const Icon(Icons.more_vert, size: 20),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          Text(
+            '3. Profile Configuration',
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
             ),
@@ -167,7 +254,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 16),
 
           Text(
-            '3. Family Group Configuration',
+            '4. Family Group Configuration',
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
             ),

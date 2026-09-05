@@ -201,3 +201,51 @@ class RouteWaypoint {
         estimatedTime: map['estimated_time'] as int? ?? 0,
       );
 }
+
+class MatrixDevice {
+  final String deviceId;
+  final String displayName;
+  final String lastSeenIp;
+  final int lastSeenTs;
+  final String verificationStatus; // 'Verified' | 'Unverified' | 'Blocked'
+
+  MatrixDevice({
+    required this.deviceId,
+    required this.displayName,
+    this.lastSeenIp = '',
+    this.lastSeenTs = 0,
+    this.verificationStatus = 'Unverified',
+  });
+
+  MatrixDevice copyWith({
+    String? deviceId,
+    String? displayName,
+    String? lastSeenIp,
+    int? lastSeenTs,
+    String? verificationStatus,
+  }) {
+    return MatrixDevice(
+      deviceId: deviceId ?? this.deviceId,
+      displayName: displayName ?? this.displayName,
+      lastSeenIp: lastSeenIp ?? this.lastSeenIp,
+      lastSeenTs: lastSeenTs ?? this.lastSeenTs,
+      verificationStatus: verificationStatus ?? this.verificationStatus,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+        'device_id': deviceId,
+        'display_name': displayName,
+        'last_seen_ip': lastSeenIp,
+        'last_seen_ts': lastSeenTs,
+        'verification_status': verificationStatus,
+      };
+
+  factory MatrixDevice.fromMap(Map<String, dynamic> map) => MatrixDevice(
+        deviceId: map['device_id'] as String? ?? '',
+        displayName: map['display_name'] as String? ?? map['device_id'] as String? ?? 'Unknown Device',
+        lastSeenIp: map['last_seen_ip'] as String? ?? '',
+        lastSeenTs: map['last_seen_ts'] as int? ?? 0,
+        verificationStatus: map['verification_status'] as String? ?? 'Unverified',
+      );
+}

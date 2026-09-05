@@ -128,22 +128,36 @@ When an active carpool starts, real-time location and dynamic ETA updates are ac
 
 ---
 
-## 5. Security & Progressive E2EE Implementation Roadmap
+## 5. Matrix Device Management & End-to-End Encryption (E2EE)
 
-To ensure coding agents succeed without getting blocked by native cryptographic library compile issues, we define a progressive development path:
+To ensure privacy, encrypted message decryption, and device trust (modeled after clients like Cinny):
+
+### Device Management Architecture
+1. **Device ID Registration**: Every Matrix session login registers or reuses a unique `device_id` returned by `/_matrix/client/v3/login`.
+2. **Device Key Upload & Query**:
+   - Device keys (Curve25519 identity key and Ed25519 signing key) and one-time keys are uploaded via `/_matrix/client/v3/keys/upload`.
+   - Other room participants' device keys are queried via `/_matrix/client/v3/keys/query`.
+3. **Device Verification State Machine**:
+   - Each user device is tracked locally with a verification state: `Verified`, `Unverified`, or `Blocked`.
+   - Users can manage and verify current and remote devices from the Settings interface.
 
 ```text
-┌─────────────────────────┐      ┌─────────────────────────┐      ┌─────────────────────────┐
-│         Phase A         │      │         Phase B         │      │         Phase C         │
-│  Unencrypted Prototype  │ ───> │  Secure Storage & Sync  │ ───> │  Native E2EE Activation  │
-│  Validate client logic,  │      │ Cache room keys, native │      │ Integrate standard Olm/ │
-│  schedules, & navigation│      │ SQLite encryption key   │      │ Megolm room encryption  │
-└─────────────────────────┘      └─────────────────────────┘      └─────────────────────────┘
+┌─────────────────────────┐        ┌─────────────────────────┐
+│     Matrix Login        │ ──────>│ Persistent Device ID &  │
+│  (returns device_id)    │        │ Matrix Access Token     │
+└─────────────────────────┘        └────────────┬────────────┘
+                                                │
+                                                ▼
+┌─────────────────────────┐        ┌─────────────────────────┐
+│ Device Key Upload       │ <──────│ Matrix Device Registry  │
+│ (/_matrix/client/v3/   │        │ GET /_matrix/client/v3/ │
+│  keys/upload)           │        │     devices             │
+└─────────────────────────┘        └─────────────────────────┘
 ```
 
-* **Phase A: Functional Protocol Prototype**: The agent builds the complete application state machines, UI, database sync, and routing engines using unencrypted private Matrix rooms.
-* **Phase B: Secure Storage**: The agent secures the local SQLite database using SQLCipher bindings (`expo-sqlite/sqlcipher`) and secures authentication credentials using `expo-secure-store`.
-* **Phase C: Native E2EE Integration**: The agent enables Room Encryption. By choosing standard Matrix specifications, the native Matrix client libraries automatically handle secure key-sharing (Megolm) and E2EE message parsing.
+### Room Encryption
+- All private carpool circles are initialized with `m.room.encryption` (`algorithm: m.megolm.v1.aes-sha2`).
+- Event payloads in encrypted rooms are wrapped in `m.room.encrypted` events.
 
 ---
 
