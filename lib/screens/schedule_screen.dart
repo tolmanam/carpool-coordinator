@@ -178,15 +178,15 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
               ),
               child: Row(
                 children: [
-                  Icon(
-                    matrix.isOffline ? Icons.wifi_off : Icons.check_circle_outline,
-                    color: matrix.isOffline ? Colors.orange : Colors.green,
+                  const Icon(
+                    Icons.check_circle_outline,
+                    color: Colors.green,
                     size: 20,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      matrix.isOffline ? 'Offline Mode (Cached Data)' : 'Local Database Synced Offline',
+                      'Local Database Synced Offline',
                       style: theme.textTheme.labelMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),

@@ -91,26 +91,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Network Badge
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Chip(
-                          avatar: Icon(
-                            matrixService.isOffline ? Icons.wifi_off : Icons.wifi,
-                            size: 18,
-                            color: matrixService.isOffline ? Colors.red : Colors.green,
-                          ),
-                          label: Text(matrixService.isOffline ? 'OFFLINE' : 'ONLINE'),
-                        ),
-                        Switch(
-                          value: matrixService.isOffline,
-                          onChanged: (val) => matrixService.toggleOfflineMode(val),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-
                     Text(
                       'Carpool Coordinator',
                       style: theme.textTheme.headlineMedium?.copyWith(

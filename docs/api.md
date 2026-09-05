@@ -13,15 +13,28 @@ export interface MatrixClientConfig {
   baseUrl: string;
   userId: string;
   accessToken: string;
+  deviceId: string;
 }
 
 /**
- * Initializes the local client Matrix SDK and starts the event synchronization loop.
+ * Devices API Interface
+ */
+export interface MatrixDevice {
+  device_id: string;
+  display_name?: string;
+  last_seen_ip?: string;
+  last_seen_ts?: number;
+  verification_status: 'Verified' | 'Unverified' | 'Blocked';
+}
+
+/**
+ * Initializes Matrix session, fetches user devices, uploads keys, and starts Matrix /sync loop.
  */
 export async function initializeMatrixSession(config: MatrixClientConfig): Promise<void> {
-  // 1. Instantiates standard Matrix Client SDK
-  // 2. Begins Matrix /sync background execution loop
-  // 3. Registers Matrix Event listeners to intercept custom 'org.carpool.*' namespaces
+  // 1. Store deviceId and accessToken in persistent storage
+  // 2. Query user devices via GET /_matrix/client/v3/devices
+  // 3. Upload device keys via POST /_matrix/client/v3/keys/upload
+  // 4. Begin Matrix /sync loop tracking next_batch token
 }
 
 /**
