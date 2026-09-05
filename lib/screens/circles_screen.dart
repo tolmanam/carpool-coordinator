@@ -14,69 +14,146 @@ class CirclesScreen extends StatefulWidget {
 }
 
 class _CirclesScreenState extends State<CirclesScreen> {
-  final _circleNameController = TextEditingController();
-  final _icalFeedController = TextEditingController();
-  final _inviteController = TextEditingController();
+  final _orgNameController = TextEditingController();
+  final _orgIcalController = TextEditingController();
 
-  List<Schedule> _circles = [];
-  Schedule? _selectedCircle;
-  List<FamilyMember> _circleMembers = [];
+  final _circleNameController = TextEditingController();
+  final _circleAddressController = TextEditingController();
+
+  final _inviteController = TextEditingController();
+  final _chatMessageController = TextEditingController();
+
+  List<Organization> _organizations = [];
+  Organization? _selectedOrg;
+
+  List<CarpoolCircle> _carpoolCircles = [];
+  CarpoolCircle? _selectedCircle;
+
+  List<FamilyMember> _allFamilyMembers = [];
+  List<OrganizationParticipant> _orgParticipants = [];
+  List<ChatMessage> _chatMessages = [];
+
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadCircles();
+    _loadData();
   }
 
-  Future<void> _loadCircles() async {
+  Future<void> _loadData() async {
     final db = Provider.of<DatabaseService>(context, listen: false);
-    final circles = await db.getSchedules();
+
+    final orgs = await db.getOrganizations();
+    final familyMembers = await db.getAllFamilyMembers();
 
     if (mounted) {
       setState(() {
-        _circles = circles;
-        if (_circles.isNotEmpty) {
-          _selectedCircle = _selectedCircle != null && _circles.any((c) => c.scheduleId == _selectedCircle!.scheduleId)
-              ? _circles.firstWhere((c) => c.scheduleId == _selectedCircle!.scheduleId)
-              : _circles.first;
-          _icalFeedController.text = _selectedCircle!.icalFeedUrl;
+        _organizations = orgs;
+        _allFamilyMembers = familyMembers;
+
+        if (_organizations.isNotEmpty) {
+          _selectedOrg = _selectedOrg != null && _organizations.any((o) => o.orgId == _selectedOrg!.orgId)
+              ? _organizations.firstWhere((o) => o.orgId == _selectedOrg!.orgId)
+              : _organizations.first;
+          _orgIcalController.text = _selectedOrg!.icalFeedUrl;
         } else {
-          _selectedCircle = null;
-          _icalFeedController.clear();
+          _selectedOrg = null;
+          _orgIcalController.clear();
         }
         _isLoading = false;
       });
 
-      if (_selectedCircle != null) {
-        await _loadCircleMembers(_selectedCircle!.scheduleId);
+      if (_selectedOrg != null) {
+        await _loadOrgDetails(_selectedOrg!.orgId);
       }
     }
   }
 
-  Future<void> _loadCircleMembers(String scheduleId) async {
+  Future<void> _loadOrgDetails(String orgId) async {
     final db = Provider.of<DatabaseService>(context, listen: false);
-    final members = await db.getAllFamilyMembers();
+    final circles = await db.getCarpoolCircles(orgId);
+    final participants = await db.getOrgParticipants(orgId);
+
     if (mounted) {
       setState(() {
-        _circleMembers = members;
+        _carpoolCircles = circles;
+        _orgParticipants = participants;
+
+        if (_carpoolCircles.isNotEmpty) {
+          _selectedCircle = _selectedCircle != null && _carpoolCircles.any((c) => c.circleId == _selectedCircle!.circleId)
+              ? _carpoolCircles.firstWhere((c) => c.circleId == _selectedCircle!.circleId)
+              : _carpoolCircles.first;
+        } else {
+          _selectedCircle = null;
+        }
+      });
+
+      final activeRoomId = _selectedCircle?.circleId ?? _selectedOrg?.orgId ?? '';
+      if (activeRoomId.isNotEmpty) {
+        await _loadChatMessages(activeRoomId);
+      }
+    }
+  }
+
+  Future<void> _loadChatMessages(String roomId) async {
+    final db = Provider.of<DatabaseService>(context, listen: false);
+    final msgs = await db.getChatMessages(roomId);
+    if (mounted) {
+      setState(() {
+        _chatMessages = msgs;
       });
     }
   }
 
-  void _handleCreateCircle() async {
-    if (_circleNameController.text.trim().isEmpty) return;
+  void _handleCreateOrg() async {
+    final name = _orgNameController.text.trim();
+    if (name.isEmpty) return;
+
     final matrix = Provider.of<MatrixService>(context, listen: false);
     try {
-      final newId = await matrix.createCircle(
-        _circleNameController.text.trim(),
-        icalFeedUrl: _icalFeedController.text.trim(),
+      final org = await matrix.createOrganization(
+        name,
+        _orgIcalController.text.trim(),
       );
-      _circleNameController.clear();
-      await _loadCircles();
+      _orgNameController.clear();
+      _orgIcalController.clear();
+      await _loadData();
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Circle created! Room ID: $newId')),
+          SnackBar(content: Text('Created Organization "${org.name}"')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error creating organization: $e')),
+        );
+      }
+    }
+  }
+
+  void _handleCreateCircle() async {
+    if (_selectedOrg == null) return;
+    final name = _circleNameController.text.trim();
+    if (name.isEmpty) return;
+
+    final matrix = Provider.of<MatrixService>(context, listen: false);
+    try {
+      final circle = await matrix.createCircleForOrg(
+        _selectedOrg!.orgId,
+        name,
+        _circleAddressController.text.trim(),
+      );
+
+      _circleNameController.clear();
+      _circleAddressController.clear();
+      await _loadOrgDetails(_selectedOrg!.orgId);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Created Carpool Circle "${circle.name}"!')),
         );
       }
     } catch (e) {
@@ -88,40 +165,51 @@ class _CirclesScreenState extends State<CirclesScreen> {
     }
   }
 
-  void _handleSaveIcalFeed() async {
-    if (_selectedCircle == null) return;
+  void _handleToggleParticipant(String memberId) async {
+    if (_selectedOrg == null) return;
     final db = Provider.of<DatabaseService>(context, listen: false);
 
-    final updated = Schedule(
-      scheduleId: _selectedCircle!.scheduleId,
-      title: _selectedCircle!.title,
-      icalFeedUrl: _icalFeedController.text.trim(),
-      latitude: _selectedCircle!.latitude,
-      longitude: _selectedCircle!.longitude,
-      addressText: _selectedCircle!.addressText,
-      homeserverUrl: _selectedCircle!.homeserverUrl,
-    );
-
-    await db.insertSchedule(updated);
-    await _loadCircles();
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Calendar feed URL saved!')),
-      );
+    final isParticipant = _orgParticipants.any((p) => p.memberId == memberId);
+    if (isParticipant) {
+      await db.deleteOrgParticipant(_selectedOrg!.orgId, memberId);
+    } else {
+      await db.insertOrgParticipant(OrganizationParticipant(
+        id: '${_selectedOrg!.orgId}_$memberId',
+        orgId: _selectedOrg!.orgId,
+        memberId: memberId,
+        circleId: _selectedCircle?.circleId ?? '',
+      ));
     }
+
+    await _loadOrgDetails(_selectedOrg!.orgId);
+  }
+
+  void _handleSendChatMessage() async {
+    final text = _chatMessageController.text.trim();
+    final roomId = _selectedCircle?.circleId ?? _selectedOrg?.orgId ?? '';
+    if (text.isEmpty || roomId.isEmpty) return;
+
+    final matrix = Provider.of<MatrixService>(context, listen: false);
+    final senderName = matrix.username.isNotEmpty ? matrix.username : 'Family Admin';
+
+    await matrix.sendChatMessage(roomId, text, senderName);
+    _chatMessageController.clear();
+    await _loadChatMessages(roomId);
   }
 
   void _handleInvite() async {
-    if (_inviteController.text.trim().isEmpty || _selectedCircle == null) return;
+    final roomId = _selectedCircle?.circleId ?? _selectedOrg?.orgId ?? '';
+    final roomTitle = _selectedCircle?.name ?? _selectedOrg?.name ?? 'Carpool Group';
+    if (_inviteController.text.trim().isEmpty || roomId.isEmpty) return;
+
     final matrix = Provider.of<MatrixService>(context, listen: false);
     final input = _inviteController.text.trim();
 
     if (input.contains('@') && !input.startsWith('@')) {
       // Email invitation -> Generate mailto: link
       final mailtoUrl = matrix.generateEmailInviteLink(
-        _selectedCircle!.scheduleId,
-        _selectedCircle!.title,
+        roomId,
+        roomTitle,
         input,
       );
 
@@ -157,7 +245,7 @@ class _CirclesScreenState extends State<CirclesScreen> {
     } else {
       // Matrix ID invitation
       try {
-        await matrix.inviteMember(_selectedCircle!.scheduleId, input);
+        await matrix.inviteMember(roomId, input);
         _inviteController.clear();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -188,51 +276,54 @@ class _CirclesScreenState extends State<CirclesScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Your Coordination Circles',
+            'Organizations & Carpool Circles',
             style: theme.textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 12),
 
-          if (_circles.isEmpty)
+          if (_organizations.isEmpty)
             EmptyStateWidget(
-              icon: Icons.group_add,
-              title: 'No Circles Created',
-              description: 'Create a new coordination circle or accept a Matrix room invite to start sharing schedules with other families.',
-              buttonText: 'Create Your First Circle',
+              icon: Icons.corporate_fare,
+              title: 'No Organizations Found',
+              description: 'Create an Organization for your sports team, gymnastics club, or social group to manage shared schedules and carpool circles.',
+              buttonText: 'Create Your First Organization',
               onButtonPressed: () {
-                _circleNameController.text = 'Neighborhood Carpool Circle';
-                _handleCreateCircle();
+                _orgNameController.text = 'Westside Sports Team';
+                _orgIcalController.text = 'https://sports-club.org/calendars/u10.ics';
+                _handleCreateOrg();
               },
             )
           else ...[
+            // 1. Select Active Organization
             DropdownButtonFormField<String>(
-              value: _selectedCircle?.scheduleId,
+              value: _selectedOrg?.orgId,
               decoration: const InputDecoration(
-                labelText: 'Active Selected Circle',
+                labelText: 'Active Organization (Shared Schedule)',
                 border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.shield),
+                prefixIcon: Icon(Icons.domain),
               ),
-              items: _circles.map((c) {
+              items: _organizations.map((o) {
                 return DropdownMenuItem<String>(
-                  value: c.scheduleId,
-                  child: Text(c.title, overflow: TextOverflow.ellipsis),
+                  value: o.orgId,
+                  child: Text(o.name, overflow: TextOverflow.ellipsis),
                 );
               }).toList(),
               onChanged: (val) {
                 if (val != null) {
                   setState(() {
-                    _selectedCircle = _circles.firstWhere((c) => c.scheduleId == val);
-                    _icalFeedController.text = _selectedCircle!.icalFeedUrl;
+                    _selectedOrg = _organizations.firstWhere((o) => o.orgId == val);
+                    _orgIcalController.text = _selectedOrg!.icalFeedUrl;
                   });
-                  _loadCircleMembers(_selectedCircle!.scheduleId);
+                  _loadOrgDetails(_selectedOrg!.orgId);
                 }
               },
             ),
             const SizedBox(height: 16),
 
-            if (_selectedCircle != null) ...[
+            if (_selectedOrg != null) ...[
+              // Organization Schedule Info
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
@@ -241,33 +332,119 @@ class _CirclesScreenState extends State<CirclesScreen> {
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.calendar_today, color: theme.colorScheme.primary),
+                          Icon(Icons.event, color: theme.colorScheme.primary),
                           const SizedBox(width: 8),
-                          Text(
-                            'Circle iCal Calendar Feed',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
+                          Expanded(
+                            child: Text(
+                              '${_selectedOrg!.name} Schedule',
+                              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                             ),
                           ),
                         ],
                       ),
+                      const SizedBox(height: 8),
+                      Text('iCal URL: ${_selectedOrg!.icalFeedUrl.isNotEmpty ? _selectedOrg!.icalFeedUrl : "None set"}',
+                          style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // 2. Organization Participants (Individual Family Members)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Organization Participants (My Family)',
+                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      if (_allFamilyMembers.isEmpty)
+                        const Text('No family members added yet. Add family members in Settings.')
+                      else
+                        ..._allFamilyMembers.map((member) {
+                          final isParticipant = _orgParticipants.any((p) => p.memberId == member.memberId);
+                          return CheckboxListTile(
+                            title: Text(member.name),
+                            subtitle: Text('${member.isAdult ? "Adult" : "Child"} • ${member.canDrive ? "Driver" : "Rider"}'),
+                            value: isParticipant,
+                            onChanged: (_) => _handleToggleParticipant(member.memberId),
+                          );
+                        }),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // 3. Carpool Circles (Subdivisions)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Carpool Circle Subdivisions',
+                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      if (_carpoolCircles.isEmpty)
+                        const Text('No carpool circles created under this organization yet.')
+                      else
+                        DropdownButtonFormField<String>(
+                          value: _selectedCircle?.circleId,
+                          decoration: const InputDecoration(
+                            labelText: 'Active Carpool Circle',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.group),
+                          ),
+                          items: _carpoolCircles.map((c) {
+                            return DropdownMenuItem<String>(
+                              value: c.circleId,
+                              child: Text(c.name, overflow: TextOverflow.ellipsis),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() {
+                                _selectedCircle = _carpoolCircles.firstWhere((c) => c.circleId == val);
+                              });
+                              _loadChatMessages(_selectedCircle!.circleId);
+                            }
+                          },
+                        ),
                       const SizedBox(height: 12),
+                      Text('Create Circle Subdivision:', style: theme.textTheme.labelLarge),
+                      const SizedBox(height: 8),
                       TextField(
-                        controller: _icalFeedController,
+                        controller: _circleNameController,
                         decoration: const InputDecoration(
-                          labelText: 'iCal Feed URL (.ics)',
+                          labelText: 'Circle Name (e.g. Northside Carpool)',
                           border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.link),
-                          hintText: 'https://example.com/calendar.ics',
+                          prefixIcon: Icon(Icons.subdirectory_arrow_right),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _circleAddressController,
+                        decoration: const InputDecoration(
+                          labelText: 'Pickup Address (Optional)',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.location_on),
                         ),
                       ),
                       const SizedBox(height: 12),
                       SizedBox(
                         width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: _handleSaveIcalFeed,
-                          icon: const Icon(Icons.save),
-                          label: const Text('Save Feed URL'),
+                        child: ElevatedButton.icon(
+                          onPressed: _handleCreateCircle,
+                          icon: const Icon(Icons.add),
+                          label: const Text('Add Carpool Circle Subdivision'),
                         ),
                       ),
                     ],
@@ -276,35 +453,81 @@ class _CirclesScreenState extends State<CirclesScreen> {
               ),
               const SizedBox(height: 16),
 
+              // 4. In-App Group Messaging / Chat
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Circle Participants',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                      Row(
+                        children: [
+                          Icon(Icons.chat, color: theme.colorScheme.primary),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Group Chat (${_selectedCircle != null ? _selectedCircle!.name : _selectedOrg!.name})',
+                            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 8),
-                      if (_circleMembers.isEmpty)
-                        const Text('No members registered in local cache yet.')
-                      else
-                        ..._circleMembers.map((m) => ListTile(
-                              leading: CircleAvatar(
-                                child: Text(m.name.isNotEmpty ? m.name[0].toUpperCase() : '?'),
+                      const SizedBox(height: 12),
+                      Container(
+                        height: 160,
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: theme.colorScheme.outlineVariant),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: _chatMessages.isEmpty
+                            ? const Center(child: Text('No messages in this chat group yet.'))
+                            : ListView.builder(
+                                itemCount: _chatMessages.length,
+                                itemBuilder: (ctx, idx) {
+                                  final msg = _chatMessages[idx];
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 4.0),
+                                    child: RichText(
+                                      text: TextSpan(
+                                        style: TextStyle(color: theme.colorScheme.onSurface),
+                                        children: [
+                                          TextSpan(
+                                            text: '${msg.senderName}: ',
+                                            style: const TextStyle(fontWeight: FontWeight.bold),
+                                          ),
+                                          TextSpan(text: msg.content),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
                               ),
-                              title: Text(m.name),
-                              subtitle: Text('Role: ${m.role} • Matrix: ${m.matrixId}'),
-                            )),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _chatMessageController,
+                              decoration: const InputDecoration(
+                                hintText: 'Type group message...',
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton.filled(
+                            onPressed: _handleSendChatMessage,
+                            icon: const Icon(Icons.send),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
               ),
               const SizedBox(height: 16),
 
+              // 5. Send Invite
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
@@ -312,10 +535,8 @@ class _CirclesScreenState extends State<CirclesScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Invite Member to Circle',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                        'Invite Family to Organization / Circle',
+                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 12),
                       TextField(
@@ -347,6 +568,7 @@ class _CirclesScreenState extends State<CirclesScreen> {
           ],
 
           const SizedBox(height: 20),
+          // Create New Organization Section
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16.0),
@@ -354,27 +576,34 @@ class _CirclesScreenState extends State<CirclesScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Create Standalone Circle',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                    'Create New Organization',
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
                   TextField(
-                    controller: _circleNameController,
+                    controller: _orgNameController,
                     decoration: const InputDecoration(
-                      labelText: 'Circle Name',
+                      labelText: 'Organization Name',
                       border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.group),
+                      prefixIcon: Icon(Icons.business),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _orgIcalController,
+                    decoration: const InputDecoration(
+                      labelText: 'Shared iCal Feed URL',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.link),
                     ),
                   ),
                   const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: _handleCreateCircle,
-                      icon: const Icon(Icons.add),
-                      label: const Text('Create Standalone Circle'),
+                      onPressed: _handleCreateOrg,
+                      icon: const Icon(Icons.add_business),
+                      label: const Text('Create Organization'),
                     ),
                   ),
                 ],

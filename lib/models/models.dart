@@ -36,15 +36,29 @@ class Family {
 
 class FamilyMember {
   final String memberId;
-  final String matrixId;
+  final String matrixId; // Family matrix_id link
   final String name;
-  final String role; // 'parent', 'child', or JSON array string
+  final String role; // 'parent', 'child'
+  final bool isAdult;
+  final bool canDrive;
+  final String memberMatrixId; // Private individual Matrix ID
+  final String email;
+  final String avatarUrl;
+  final String phone;
+  final String emergencyContact;
 
   FamilyMember({
     required this.memberId,
     required this.matrixId,
     required this.name,
     required this.role,
+    this.isAdult = true,
+    this.canDrive = false,
+    this.memberMatrixId = '',
+    this.email = '',
+    this.avatarUrl = '',
+    this.phone = '',
+    this.emergencyContact = '',
   });
 
   Map<String, dynamic> toMap() => {
@@ -52,6 +66,13 @@ class FamilyMember {
         'matrix_id': matrixId,
         'name': name,
         'role': role,
+        'is_adult': isAdult ? 1 : 0,
+        'can_drive': canDrive ? 1 : 0,
+        'member_matrix_id': memberMatrixId,
+        'email': email,
+        'avatar_url': avatarUrl,
+        'phone': phone,
+        'emergency_contact': emergencyContact,
       };
 
   factory FamilyMember.fromMap(Map<String, dynamic> map) => FamilyMember(
@@ -59,6 +80,141 @@ class FamilyMember {
         matrixId: map['matrix_id'] as String,
         name: map['name'] as String,
         role: map['role'] as String,
+        isAdult: map['is_adult'] == 1 || map['is_adult'] == true || map['role'] == 'parent',
+        canDrive: map['can_drive'] == 1 || map['can_drive'] == true,
+        memberMatrixId: map['member_matrix_id'] as String? ?? '',
+        email: map['email'] as String? ?? '',
+        avatarUrl: map['avatar_url'] as String? ?? '',
+        phone: map['phone'] as String? ?? '',
+        emergencyContact: map['emergency_contact'] as String? ?? '',
+      );
+}
+
+class Organization {
+  final String orgId;
+  final String name;
+  final String icalFeedUrl;
+  final String matrixSpaceId;
+  final String homeserverUrl;
+
+  Organization({
+    required this.orgId,
+    required this.name,
+    required this.icalFeedUrl,
+    this.matrixSpaceId = '',
+    this.homeserverUrl = 'https://matrix.org',
+  });
+
+  Map<String, dynamic> toMap() => {
+        'org_id': orgId,
+        'name': name,
+        'ical_feed_url': icalFeedUrl,
+        'matrix_space_id': matrixSpaceId,
+        'homeserver_url': homeserverUrl,
+      };
+
+  factory Organization.fromMap(Map<String, dynamic> map) => Organization(
+        orgId: map['org_id'] as String,
+        name: map['name'] as String,
+        icalFeedUrl: map['ical_feed_url'] as String? ?? '',
+        matrixSpaceId: map['matrix_space_id'] as String? ?? '',
+        homeserverUrl: map['homeserver_url'] as String? ?? 'https://matrix.org',
+      );
+}
+
+class CarpoolCircle {
+  final String circleId;
+  final String orgId;
+  final String name;
+  final String matrixRoomId;
+  final String pickupAddress;
+
+  CarpoolCircle({
+    required this.circleId,
+    required this.orgId,
+    required this.name,
+    this.matrixRoomId = '',
+    this.pickupAddress = '',
+  });
+
+  Map<String, dynamic> toMap() => {
+        'circle_id': circleId,
+        'org_id': orgId,
+        'name': name,
+        'matrix_room_id': matrixRoomId,
+        'pickup_address': pickupAddress,
+      };
+
+  factory CarpoolCircle.fromMap(Map<String, dynamic> map) => CarpoolCircle(
+        circleId: map['circle_id'] as String,
+        orgId: map['org_id'] as String,
+        name: map['name'] as String,
+        matrixRoomId: map['matrix_room_id'] as String? ?? '',
+        pickupAddress: map['pickup_address'] as String? ?? '',
+      );
+}
+
+class OrganizationParticipant {
+  final String id;
+  final String orgId;
+  final String memberId;
+  final String circleId;
+
+  OrganizationParticipant({
+    required this.id,
+    required this.orgId,
+    required this.memberId,
+    this.circleId = '',
+  });
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'org_id': orgId,
+        'member_id': memberId,
+        'circle_id': circleId,
+      };
+
+  factory OrganizationParticipant.fromMap(Map<String, dynamic> map) => OrganizationParticipant(
+        id: map['id'] as String,
+        orgId: map['org_id'] as String,
+        memberId: map['member_id'] as String,
+        circleId: map['circle_id'] as String? ?? '',
+      );
+}
+
+class ChatMessage {
+  final String id;
+  final String roomId;
+  final String senderId;
+  final String senderName;
+  final String content;
+  final int timestamp;
+
+  ChatMessage({
+    required this.id,
+    required this.roomId,
+    required this.senderId,
+    required this.senderName,
+    required this.content,
+    required this.timestamp,
+  });
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'room_id': roomId,
+        'sender_id': senderId,
+        'sender_name': senderName,
+        'content': content,
+        'timestamp': timestamp,
+      };
+
+  factory ChatMessage.fromMap(Map<String, dynamic> map) => ChatMessage(
+        id: map['id'] as String,
+        roomId: map['room_id'] as String,
+        senderId: map['sender_id'] as String,
+        senderName: map['sender_name'] as String,
+        content: map['content'] as String,
+        timestamp: map['timestamp'] as int,
       );
 }
 

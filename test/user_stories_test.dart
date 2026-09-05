@@ -57,15 +57,26 @@ void main() {
       expect(members.first.role, equals('child'));
     });
 
-    test('US-103 & US-302: Circle Creation and Matrix Room Invitation', () async {
-      final scheduleId = await matrixService.createCircle('Soccer Team Circle');
-      final schedules = await dbService.getSchedules();
+    test('US-103 & US-302: Organization & Circle Subdivisions with Matrix Spaces', () async {
+      final org = await matrixService.createOrganization('Westside Soccer Club', 'https://example.com/u10.ics');
+      final orgs = await dbService.getOrganizations();
 
-      expect(schedules.length, equals(1));
-      expect(schedules.first.title, equals('Soccer Team Circle'));
-      expect(scheduleId, isNotEmpty);
+      expect(orgs.length, equals(1));
+      expect(orgs.first.name, equals('Westside Soccer Club'));
 
-      await matrixService.inviteMember(scheduleId, '@other_parent:matrix.org');
+      final circle = await matrixService.createCircleForOrg(org.orgId, 'Northside Carpool', '123 Main St');
+      final circles = await dbService.getCarpoolCircles(org.orgId);
+
+      expect(circles.length, equals(1));
+      expect(circles.first.name, equals('Northside Carpool'));
+
+      await matrixService.sendChatMessage(circle.circleId, 'Pickup at 5pm!', 'Alice');
+      final msgs = await dbService.getChatMessages(circle.circleId);
+
+      expect(msgs.length, equals(1));
+      expect(msgs.first.content, equals('Pickup at 5pm!'));
+
+      await matrixService.inviteMember(circle.circleId, '@other_parent:matrix.org');
     });
 
     test('US-104 & US-105: Ride Registration and Participant Opt-Out', () async {

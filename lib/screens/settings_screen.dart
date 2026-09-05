@@ -18,6 +18,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _notificationSound = 'Default';
   bool _isLoading = true;
 
+  List<FamilyMember> _familyMembers = [];
+
+  // Controllers for adding family member
+  final _memberNameController = TextEditingController();
+  final _memberEmailController = TextEditingController();
+  final _memberPhoneController = TextEditingController();
+  final _memberEmergencyController = TextEditingController();
+  final _memberMatrixIdController = TextEditingController();
+  bool _memberIsAdult = true;
+  bool _memberCanDrive = false;
+
   @override
   void initState() {
     super.initState();
@@ -42,6 +53,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _notificationSound = sound;
     }
 
+    await _loadFamilyMembers();
+
     if (mounted) {
       setState(() => _isLoading = false);
     }
@@ -55,6 +68,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _userRoles.add(role);
       }
     });
+  }
+
+  Future<void> _loadFamilyMembers() async {
+    final db = Provider.of<DatabaseService>(context, listen: false);
+    final members = await db.getAllFamilyMembers();
+    if (mounted) {
+      setState(() {
+        _familyMembers = members;
+      });
+    }
+  }
+
+  void _handleAddFamilyMember() async {
+    final name = _memberNameController.text.trim();
+    if (name.isEmpty) return;
+
+    final db = Provider.of<DatabaseService>(context, listen: false);
+    final matrix = Provider.of<MatrixService>(context, listen: false);
+    final userMatrixId = matrix.username.startsWith('@') ? matrix.username : '@${matrix.username}:matrix.org';
+
+    final member = FamilyMember(
+      memberId: 'member_${DateTime.now().millisecondsSinceEpoch}',
+      matrixId: userMatrixId,
+      name: name,
+      role: _memberIsAdult ? 'parent' : 'child',
+      isAdult: _memberIsAdult,
+      canDrive: _memberCanDrive,
+      memberMatrixId: _memberMatrixIdController.text.trim(),
+      email: _memberEmailController.text.trim(),
+      phone: _memberPhoneController.text.trim(),
+      emergencyContact: _memberEmergencyController.text.trim(),
+    );
+
+    await db.insertFamilyMember(member);
+
+    _memberNameController.clear();
+    _memberEmailController.clear();
+    _memberPhoneController.clear();
+    _memberEmergencyController.clear();
+    _memberMatrixIdController.clear();
+
+    await _loadFamilyMembers();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Added $name to Family!')),
+      );
+    }
   }
 
   void _saveFamilyDetails() async {
@@ -75,6 +136,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ));
 
       await db.setSetting('notification_sound', _notificationSound);
+      await _loadFamilyMembers();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -281,6 +343,124 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       onPressed: _saveFamilyDetails,
                       icon: const Icon(Icons.save),
                       label: const Text('Save Family Details'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          Text(
+            '5. Family Member Profiles (Adults, Children, Drivers)',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_familyMembers.isNotEmpty) ...[
+                    Text('Registered Family Members (${_familyMembers.length})', style: theme.textTheme.labelLarge),
+                    const SizedBox(height: 8),
+                    ..._familyMembers.map((m) => ListTile(
+                          leading: CircleAvatar(
+                            child: Text(m.name.isNotEmpty ? m.name[0].toUpperCase() : '?'),
+                          ),
+                          title: Text(m.name),
+                          subtitle: Text(
+                            '${m.isAdult ? "Adult" : "Child"} • ${m.canDrive ? "Can Drive" : "Rider"}'
+                            '${m.email.isNotEmpty ? " • ${m.email}" : ""}'
+                            '${m.phone.isNotEmpty ? " • ${m.phone}" : ""}',
+                          ),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () async {
+                              final db = Provider.of<DatabaseService>(context, listen: false);
+                              await db.deleteFamilyMember(m.memberId);
+                              await _loadFamilyMembers();
+                            },
+                          ),
+                        )),
+                    const Divider(height: 24),
+                  ],
+
+                  Text('Add Family Member Profile', style: theme.textTheme.labelLarge),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _memberNameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Full Name',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.person),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: CheckboxListTile(
+                          title: const Text('Adult Member'),
+                          value: _memberIsAdult,
+                          onChanged: (val) => setState(() => _memberIsAdult = val ?? true),
+                        ),
+                      ),
+                      Expanded(
+                        child: CheckboxListTile(
+                          title: const Text('Can Drive'),
+                          value: _memberCanDrive,
+                          onChanged: (val) => setState(() => _memberCanDrive = val ?? false),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _memberEmailController,
+                    decoration: const InputDecoration(
+                      labelText: 'Email Address (Optional)',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.email),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _memberPhoneController,
+                    decoration: const InputDecoration(
+                      labelText: 'Cell Phone Number (Optional)',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.phone),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _memberEmergencyController,
+                    decoration: const InputDecoration(
+                      labelText: 'Emergency Contact Info (Optional)',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.contact_phone),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _memberMatrixIdController,
+                    decoration: const InputDecoration(
+                      labelText: 'Private Matrix ID (Optional)',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.security),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _handleAddFamilyMember,
+                      icon: const Icon(Icons.person_add),
+                      label: const Text('Add Member to Family'),
                     ),
                   ),
                 ],

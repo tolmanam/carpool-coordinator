@@ -37,9 +37,12 @@ To achieve **zero cloud hosting or database maintenance costs** and absolute pri
 
 ### Direct Mapping of Concepts
 
-* **Identity & Authentication**: Users authenticate with any Matrix homeserver using their standard Matrix ID (`@user:server.org`) and credentials (Password or OIDC/SSO). No separate authentication or database server is required.
-* **Family Group / Circle**: Modeled as a private, End-to-End Encrypted (E2EE) Matrix Room. Joining or being invited to a room represents joining a family coordination group.
-* **State Sync**: Shared group profiles (member details, home coordinates) and destination configurations are stored directly in the room as standard **Matrix State Events** (`m.room.state`).
+* **Identity & Authentication**: Users authenticate with any Matrix homeserver using their standard Matrix ID (`@user:server.org`) and credentials. At least one adult per family has a Matrix ID to log in and participate on behalf of the family.
+* **Family Group**: Modeled as a private Matrix Room containing household members (adults, children, drivers) and individual profile details (email, phone, avatar, emergency contact).
+* **Organization**: Represented as a Matrix Space (`m.space`) tagged with `org.carpool.organization: true` or a designated Carpool Coordinator space metadata property. Organizations manage shared schedules (iCal feeds).
+* **Carpool Circle**: Represented as child Matrix Rooms (`m.space.child`) under an Organization Space. Families in an Organization subdivide into overlapping circles to manage specific pickup/dropoff responsibilities.
+* **State Sync**: Shared group profiles (member details, home coordinates) and destination configurations are stored directly in Matrix rooms as standard **Matrix State Events** (`m.room.state`).
+* **Group Messaging / Chat**: Basic group chat is enabled inside Family rooms, Organization spaces/rooms, and Carpool Circle rooms. Direct 1-on-1 messaging between individuals across families is prevented within the app interface.
 * **Schedules & Sign-ups**: Shifts and attendance sign-ups are shared as custom Matrix Message Events (`org.carpool.signup`).
 * **Real-Time Coordinates & ETAs**: Streamed during active carpools as ephemeral, high-frequency, low-latency room messages (`org.carpool.location`).
 

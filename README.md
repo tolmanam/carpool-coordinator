@@ -70,8 +70,9 @@ flutter run -d linux
    * Instant sign-in using any standard Matrix homeserver credential or federated SSO / OIDC login.
 2. **Local-First iCal Parser**
    * Client-side iCalendar (`.ics`) loader fetches school or activity calendars, parsing them directly into your local offline index.
-3. **Decentralized Group Management**
-   * Uses E2EE Matrix Rooms to represent family groups. Room joins, invites, and profiles translate straight into family coordination circles.
+3. **Decentralized Hierarchy & Group Management**
+   * Support for Family groups (adults, kids, drivers; as small as 1 adult), Organizations (Matrix Spaces tagged with shared schedules/iCal feeds), and overlapping Carpool Circles as subdivisions under Organizations.
+   * Built-in group chat for Families, Organizations, and Carpool Circles directly over Matrix rooms (`m.room.message`).
 4. **Client-Side Route Calculations**
    * Runs local Traveling Salesperson Problem (TSP) algorithms directly on the driver's phone to plan the fastest pickup route and generate scheduled pickup ETAs.
 5. **Real-Time Tracking & Delay Warnings**
