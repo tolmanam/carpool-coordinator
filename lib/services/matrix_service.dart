@@ -264,6 +264,8 @@ class MatrixService extends ChangeNotifier {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('matrix_sync_token', _syncToken);
 
+        await flushPendingEvents();
+
         final rooms = data['rooms']?['join'] as Map<String, dynamic>? ?? {};
 
         for (final roomId in rooms.keys) {
@@ -350,45 +352,117 @@ class MatrixService extends ChangeNotifier {
   }
 
   Future<void> sendLocation(String scheduleId, double lat, double lng, List<Map<String, dynamic>> etaUpdates) async {
-    if (!_isOffline && _isLoggedIn) {
+    final payloadMap = {
+      'schedule_id': scheduleId,
+      'event_timestamp': DateTime.now().millisecondsSinceEpoch,
+      'latitude': lat,
+      'longitude': lng,
+      'eta_updates': etaUpdates,
+    };
+
+    if (_isOffline || !_isLoggedIn) {
+      final eventId = 'pending_loc_${DateTime.now().millisecondsSinceEpoch}';
+      await dbService.insertPendingEvent(eventId, 'location_update', scheduleId, jsonEncode(payloadMap));
+      notifyListeners();
+      return;
+    }
+
+    try {
       final txnId = 'm${DateTime.now().millisecondsSinceEpoch}';
       final uri = Uri.parse('$_homeserver/_matrix/client/v3/rooms/$scheduleId/send/org.carpool.location/$txnId');
 
-      await _client.put(
+      final res = await _client.put(
         uri,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $_accessToken',
         },
-        body: jsonEncode({
-          'schedule_id': scheduleId,
-          'event_timestamp': DateTime.now().millisecondsSinceEpoch,
-          'latitude': lat,
-          'longitude': lng,
-          'eta_updates': etaUpdates,
-        }),
+        body: jsonEncode(payloadMap),
       );
+      if (res.statusCode != 200) {
+        final eventId = 'pending_loc_${DateTime.now().millisecondsSinceEpoch}';
+        await dbService.insertPendingEvent(eventId, 'location_update', scheduleId, jsonEncode(payloadMap));
+      }
+    } catch (e) {
+      final eventId = 'pending_loc_${DateTime.now().millisecondsSinceEpoch}';
+      await dbService.insertPendingEvent(eventId, 'location_update', scheduleId, jsonEncode(payloadMap));
     }
   }
 
   Future<void> sendAlert(String scheduleId, String alertType, String message) async {
-    if (!_isOffline && _isLoggedIn) {
+    final payloadMap = {
+      'schedule_id': scheduleId,
+      'event_timestamp': DateTime.now().millisecondsSinceEpoch,
+      'alert_type': alertType,
+      'message': message,
+    };
+
+    if (_isOffline || !_isLoggedIn) {
+      final eventId = 'pending_alert_${DateTime.now().millisecondsSinceEpoch}';
+      await dbService.insertPendingEvent(eventId, 'delay_alert', scheduleId, jsonEncode(payloadMap));
+      notifyListeners();
+      return;
+    }
+
+    try {
       final txnId = 'm${DateTime.now().millisecondsSinceEpoch}';
       final uri = Uri.parse('$_homeserver/_matrix/client/v3/rooms/$scheduleId/send/org.carpool.alert/$txnId');
 
-      await _client.put(
+      final res = await _client.put(
         uri,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $_accessToken',
         },
-        body: jsonEncode({
-          'schedule_id': scheduleId,
-          'event_timestamp': DateTime.now().millisecondsSinceEpoch,
-          'alert_type': alertType,
-          'message': message,
-        }),
+        body: jsonEncode(payloadMap),
       );
+      if (res.statusCode != 200) {
+        final eventId = 'pending_alert_${DateTime.now().millisecondsSinceEpoch}';
+        await dbService.insertPendingEvent(eventId, 'delay_alert', scheduleId, jsonEncode(payloadMap));
+      }
+    } catch (e) {
+      final eventId = 'pending_alert_${DateTime.now().millisecondsSinceEpoch}';
+      await dbService.insertPendingEvent(eventId, 'delay_alert', scheduleId, jsonEncode(payloadMap));
+    }
+  }
+
+  Future<void> flushPendingEvents() async {
+    if (_isOffline || !_isLoggedIn) return;
+
+    final pendingEvents = await dbService.getPendingEvents();
+    if (pendingEvents.isEmpty) return;
+
+    for (final event in pendingEvents) {
+      final String id = event['id'] as String;
+      final String eventType = event['event_type'] as String;
+      final String scheduleId = event['schedule_id'] as String;
+      final String payloadJson = event['payload_json'] as String;
+
+      try {
+        final txnId = 'm${DateTime.now().millisecondsSinceEpoch}';
+        String matrixEventType = 'org.carpool.alert';
+        if (eventType == 'location_update') {
+          matrixEventType = 'org.carpool.location';
+        } else if (eventType == 'signup') {
+          matrixEventType = 'org.carpool.signup';
+        }
+
+        final uri = Uri.parse('$_homeserver/_matrix/client/v3/rooms/$scheduleId/send/$matrixEventType/$txnId');
+        final res = await _client.put(
+          uri,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $_accessToken',
+          },
+          body: payloadJson,
+        );
+
+        if (res.statusCode == 200) {
+          await dbService.deletePendingEvent(id);
+        }
+      } catch (e) {
+        debugPrint('Error flushing pending event $id: $e');
+      }
     }
   }
 
@@ -409,8 +483,63 @@ class MatrixService extends ChangeNotifier {
     notifyListeners();
   }
 
+  // --- US-304: Loose Coordination iCal Sync Protocol ---
+
+  Future<bool> shouldSyncIcalFeed(String roomId, {int intervalMinutes = 120}) async {
+    if (_isOffline || !_isLoggedIn) return true;
+
+    try {
+      final uri = Uri.parse('$_homeserver/_matrix/client/v3/rooms/$roomId/state/org.carpool.ical_lock/');
+      final response = await _client.get(
+        uri,
+        headers: {'Authorization': 'Bearer $_accessToken'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final lastSyncTs = data['last_sync_ts'] as int? ?? 0;
+        final now = DateTime.now().millisecondsSinceEpoch;
+        final windowMs = intervalMinutes * 60 * 1000;
+
+        if (now - lastSyncTs < windowMs) {
+          debugPrint('iCal feed for $roomId was recently synced ($lastSyncTs). Skipping redundant sync.');
+          return false;
+        }
+      }
+    } catch (e) {
+      debugPrint('Error checking iCal lock state: $e');
+    }
+    return true;
+  }
+
+  Future<void> recordIcalFeedSynced(String roomId) async {
+    if (_isOffline || !_isLoggedIn) return;
+
+    try {
+      final uri = Uri.parse('$_homeserver/_matrix/client/v3/rooms/$roomId/state/org.carpool.ical_lock/');
+      await _client.put(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $_accessToken',
+        },
+        body: jsonEncode({
+          'last_sync_ts': DateTime.now().millisecondsSinceEpoch,
+          'device_id': _deviceId,
+          'synced_by': _username,
+        }),
+      );
+    } catch (e) {
+      debugPrint('Error recording iCal feed sync state: $e');
+    }
+  }
+
   void toggleOfflineMode(bool offline) {
+    final wasOffline = _isOffline;
     _isOffline = offline;
+    if (wasOffline && !offline) {
+      unawaited(flushPendingEvents());
+    }
     notifyListeners();
   }
 

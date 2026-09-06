@@ -91,6 +91,22 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     if (existingRiderSignup) {
       await db.deleteSignup(_activeSchedule!.scheduleId, event.startTime, childMember.memberId);
     } else {
+      final matchedSignups = _signups.where((s) => s.eventTimestamp == event.startTime).toList();
+      final driverSignup = matchedSignups.where((s) => s.role == 'driver').firstOrNull;
+      final currentRiders = matchedSignups.where((s) => s.role == 'rider').length;
+
+      if (driverSignup != null && currentRiders >= driverSignup.seatCapacity) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Vehicle seat capacity limit reached (${driverSignup.seatCapacity} seats full).'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+        return;
+      }
+
       await db.insertSignup(
         Signup(
           id: 'signup_${DateTime.now().millisecondsSinceEpoch}',
@@ -130,6 +146,59 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     if (existingDriverSignup) {
       await db.deleteSignup(_activeSchedule!.scheduleId, event.startTime, parentMember.memberId);
     } else {
+      int selectedCapacity = 4;
+      if (mounted) {
+        final capacityResult = await showDialog<int>(
+          context: context,
+          builder: (ctx) {
+            int capacity = 4;
+            return StatefulBuilder(
+              builder: (context, setDialogState) {
+                return AlertDialog(
+                  title: const Text('Volunteer as Driver'),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Specify vehicle seat capacity (excluding driver):'),
+                      const SizedBox(height: 12),
+                      DropdownButton<int>(
+                        value: capacity,
+                        isExpanded: true,
+                        items: List.generate(8, (index) => index + 1)
+                            .map((c) => DropdownMenuItem(
+                                  value: c,
+                                  child: Text('$c passenger seats'),
+                                ))
+                            .toList(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setDialogState(() => capacity = val);
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, null),
+                      child: const Text('Cancel'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx, capacity),
+                      child: const Text('Confirm'),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+
+        if (capacityResult == null) return; // User cancelled dialog
+        selectedCapacity = capacityResult;
+      }
+
       await db.insertSignup(
         Signup(
           id: 'signup_${DateTime.now().millisecondsSinceEpoch}',
@@ -138,6 +207,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           memberId: parentMember.memberId,
           role: 'driver',
           status: 'scheduled',
+          seatCapacity: selectedCapacity,
         ),
       );
     }
@@ -286,7 +356,19 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                                 Icon(Icons.directions_car, size: 18, color: theme.colorScheme.primary),
                                 const SizedBox(width: 8),
                                 const Text('Driver: ', style: TextStyle(fontWeight: FontWeight.bold)),
-                                Text(driverName),
+                                Expanded(child: Text(driverName)),
+                                if (driverSignup != null) ...[
+                                  Chip(
+                                    visualDensity: VisualDensity.compact,
+                                    label: Text(
+                                      '${riderSignups.length}/${driverSignup.seatCapacity} Seats',
+                                      style: const TextStyle(fontSize: 11),
+                                    ),
+                                    backgroundColor: riderSignups.length >= driverSignup.seatCapacity
+                                        ? Colors.orange.shade100
+                                        : Colors.green.shade100,
+                                  ),
+                                ],
                               ],
                             ),
                             const SizedBox(height: 8),
@@ -295,7 +377,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                                 Icon(Icons.group, size: 18, color: theme.colorScheme.secondary),
                                 const SizedBox(width: 8),
                                 const Text('Riders: ', style: TextStyle(fontWeight: FontWeight.bold)),
-                                Text(riderNames.isNotEmpty ? riderNames : 'No riders registered'),
+                                Expanded(child: Text(riderNames.isNotEmpty ? riderNames : 'No riders registered')),
                               ],
                             ),
                           ],

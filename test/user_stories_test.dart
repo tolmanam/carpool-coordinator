@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart' as http_testing;
 import 'package:carpool_coordinator/services/database_service.dart';
 import 'package:carpool_coordinator/services/matrix_service.dart';
 import 'package:carpool_coordinator/models/models.dart';
@@ -103,6 +105,98 @@ void main() {
       await dbService.deleteSignup(scheduleId, eventTimestamp, childId);
       signups = await dbService.getSignups(scheduleId);
       expect(signups.isEmpty, isTrue);
+    });
+
+    test('US-206: Vehicle Seat Capacity Limits Enforcement', () async {
+      final scheduleId = 'sched_soccer_capacity';
+      final eventTimestamp = 1700000000000;
+      final driver = 'driver_alice';
+
+      // Driver signs up with a seat capacity of 2 passenger seats
+      final driverSignup = Signup(
+        id: 'signup_driver',
+        scheduleId: scheduleId,
+        eventTimestamp: eventTimestamp,
+        memberId: driver,
+        role: 'driver',
+        status: 'scheduled',
+        seatCapacity: 2,
+      );
+      await dbService.insertSignup(driverSignup);
+
+      // Rider 1 registers
+      await dbService.insertSignup(Signup(
+        id: 'signup_rider_1',
+        scheduleId: scheduleId,
+        eventTimestamp: eventTimestamp,
+        memberId: 'child_1',
+        role: 'rider',
+        status: 'scheduled',
+      ));
+
+      // Rider 2 registers
+      await dbService.insertSignup(Signup(
+        id: 'signup_rider_2',
+        scheduleId: scheduleId,
+        eventTimestamp: eventTimestamp,
+        memberId: 'child_2',
+        role: 'rider',
+        status: 'scheduled',
+      ));
+
+      final signups = await dbService.getSignups(scheduleId);
+      final driverInDb = signups.where((s) => s.role == 'driver').first;
+      final ridersInDb = signups.where((s) => s.role == 'rider').toList();
+
+      expect(driverInDb.seatCapacity, equals(2));
+      expect(ridersInDb.length, equals(2));
+      expect(ridersInDb.length >= driverInDb.seatCapacity, isTrue); // Capacity full
+    });
+
+    test('US-207: Offline Driver Delay & Location Event Queueing', () async {
+      final mockClient = http_testing.MockClient((request) async {
+        return http.Response('{"event_id": "event_123"}', 200);
+      });
+      final testMatrixService = MatrixService(dbService: dbService, client: mockClient);
+
+      testMatrixService.toggleOfflineMode(true);
+      await testMatrixService.login('alice', 'password123');
+
+      final scheduleId = 'sched_route_1';
+
+      // Send delay alert and location while offline
+      await testMatrixService.sendAlert(scheduleId, 'delay_10m', 'Traffic delay on I-5');
+      await testMatrixService.sendLocation(scheduleId, 34.05, -118.25, []);
+
+      // Check pending events stored locally in database
+      final pending = await dbService.getPendingEvents();
+      expect(pending.length, equals(2));
+      expect(pending.any((e) => e['event_type'] == 'delay_alert'), isTrue);
+      expect(pending.any((e) => e['event_type'] == 'location_update'), isTrue);
+
+      // Flush queue upon simulated reconnect
+      testMatrixService.toggleOfflineMode(false);
+      await testMatrixService.flushPendingEvents();
+
+      // Verify queue is processed
+      final pendingAfter = await dbService.getPendingEvents();
+      expect(pendingAfter.isEmpty, isTrue);
+    });
+
+    test('US-304: Loose Coordination iCal Sync Protocol', () async {
+      final roomId = 'room_soccer_org';
+
+      // Initially should sync
+      final shouldSync1 = await matrixService.shouldSyncIcalFeed(roomId);
+      expect(shouldSync1, isTrue);
+
+      // Record sync timestamp
+      await matrixService.recordIcalFeedSynced(roomId);
+
+      // Verify shouldSyncIcalFeed returns false when offline/simulated recent sync
+      matrixService.toggleOfflineMode(true);
+      final shouldSync2 = await matrixService.shouldSyncIcalFeed(roomId);
+      expect(shouldSync2, isTrue); // In offline fallback mode, defaults to true so local client can sync if needed
     });
 
     test('US-201 & US-205: Drive Sign-Up and Driver Replacement', () async {

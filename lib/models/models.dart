@@ -297,6 +297,7 @@ class Signup {
   final String memberId;
   final String role;   // 'rider' | 'driver'
   final String status; // 'scheduled' | 'canceled'
+  final int seatCapacity;
 
   Signup({
     required this.id,
@@ -305,6 +306,7 @@ class Signup {
     required this.memberId,
     required this.role,
     required this.status,
+    this.seatCapacity = 4,
   });
 
   Map<String, dynamic> toMap() => {
@@ -314,6 +316,7 @@ class Signup {
         'member_id': memberId,
         'role': role,
         'status': status,
+        'seat_capacity': seatCapacity,
       };
 
   factory Signup.fromMap(Map<String, dynamic> map) => Signup(
@@ -323,6 +326,7 @@ class Signup {
         memberId: map['member_id'] as String,
         role: map['role'] as String,
         status: map['status'] as String,
+        seatCapacity: map['seat_capacity'] as int? ?? 4,
       );
 }
 

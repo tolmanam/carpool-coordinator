@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../services/matrix_service.dart';
 
 class ActiveRouteScreen extends StatefulWidget {
   final String scheduleId;
@@ -135,8 +137,21 @@ class _ActiveRouteScreenState extends State<ActiveRouteScreen> {
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: () {
-                      setState(() => _activeDrive = !_activeDrive);
+                    onPressed: () async {
+                      final matrix = Provider.of<MatrixService>(context, listen: false);
+                      final newDriveState = !_activeDrive;
+                      setState(() => _activeDrive = newDriveState);
+
+                      if (newDriveState) {
+                        await matrix.sendLocation(
+                          widget.scheduleId,
+                          34.0415,
+                          -118.4520,
+                          [
+                            {'member_id': 'child_1', 'eta_minutes': 15},
+                          ],
+                        );
+                      }
                     },
                     icon: Icon(_activeDrive ? Icons.stop : Icons.play_arrow),
                     label: Text(_activeDrive ? 'Stop Drive' : 'Start Drive'),
@@ -150,8 +165,18 @@ class _ActiveRouteScreenState extends State<ActiveRouteScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: () {
-                      setState(() => _delayReported = !_delayReported);
+                    onPressed: () async {
+                      final matrix = Provider.of<MatrixService>(context, listen: false);
+                      final newDelayState = !_delayReported;
+                      setState(() => _delayReported = newDelayState);
+
+                      if (newDelayState) {
+                        await matrix.sendAlert(
+                          widget.scheduleId,
+                          'delay_10m',
+                          'Driver reported a 10-minute traffic delay.',
+                        );
+                      }
                     },
                     icon: const Icon(Icons.warning_amber),
                     label: Text(_delayReported ? 'Delay Dispatched' : 'Report 10m Delay'),

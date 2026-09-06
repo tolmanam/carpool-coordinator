@@ -135,7 +135,8 @@ class DatabaseService extends ChangeNotifier {
             event_timestamp INTEGER NOT NULL,
             member_id TEXT NOT NULL,
             role TEXT NOT NULL,
-            status TEXT NOT NULL
+            status TEXT NOT NULL,
+            seat_capacity INTEGER DEFAULT 4
           )
         ''');
 
@@ -148,6 +149,16 @@ class DatabaseService extends ChangeNotifier {
             estimated_departure INTEGER NOT NULL,
             waypoints_json TEXT NOT NULL,
             route_polyline TEXT
+          )
+        ''');
+
+        await db.execute('''
+          CREATE TABLE cached_pending_events (
+            id TEXT PRIMARY KEY,
+            event_type TEXT NOT NULL,
+            schedule_id TEXT NOT NULL,
+            payload_json TEXT NOT NULL,
+            created_at INTEGER NOT NULL
           )
         ''');
       },
@@ -399,6 +410,32 @@ class DatabaseService extends ChangeNotifier {
       msg.toMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+    notifyListeners();
+  }
+
+  // --- Pending Events CRUD (Offline Queueing) ---
+  Future<void> insertPendingEvent(String id, String eventType, String scheduleId, String payloadJson) async {
+    await db.insert(
+      'cached_pending_events',
+      {
+        'id': id,
+        'event_type': eventType,
+        'schedule_id': scheduleId,
+        'payload_json': payloadJson,
+        'created_at': DateTime.now().millisecondsSinceEpoch,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+    notifyListeners();
+  }
+
+  Future<List<Map<String, dynamic>>> getPendingEvents() async {
+    final res = await db.query('cached_pending_events', orderBy: 'created_at ASC');
+    return res;
+  }
+
+  Future<void> deletePendingEvent(String id) async {
+    await db.delete('cached_pending_events', where: 'id = ?', whereArgs: [id]);
     notifyListeners();
   }
 }
