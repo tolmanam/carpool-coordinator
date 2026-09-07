@@ -148,5 +148,79 @@ void main() {
       expect(matrixService.calculateBackoff(32000), equals(60000));
       expect(matrixService.calculateBackoff(60000), equals(60000));
     });
+
+    test('getLoginFlows queries Matrix login flows correctly', () async {
+      final mockClient = MockClient((request) async {
+        if (request.url.path == '/.well-known/matrix/client') {
+          return http.Response(jsonEncode({'m.homeserver': {'base_url': 'https://matrix.org'}}), 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/login') {
+          return http.Response(jsonEncode({
+            'flows': [
+              {'type': 'm.login.password'},
+              {
+                'type': 'm.login.sso',
+                'identity_providers': [
+                  {'id': 'google', 'name': 'Google SSO'},
+                  {'id': 'github', 'name': 'GitHub SSO'},
+                ]
+              }
+            ]
+          }), 200);
+        }
+        return http.Response('{}', 404);
+      });
+
+      final service = MatrixService(dbService: dbService, client: mockClient);
+      final flowsData = await service.getLoginFlows(homeserverUrl: 'https://matrix.org');
+
+      expect(flowsData['flows'], isA<List>());
+      final flows = flowsData['flows'] as List;
+      expect(flows.length, equals(2));
+      expect(flows[1]['type'], equals('m.login.sso'));
+    });
+
+    test('getSsoRedirectUrl formats SSO URL with optional IdP', () {
+      final defaultUrl = matrixService.getSsoRedirectUrl(
+        homeserverUrl: 'https://matrix.org',
+        redirectUrl: 'https://matrix.org',
+      );
+      expect(defaultUrl, equals('https://matrix.org/_matrix/client/v3/login/sso/redirect?redirectUrl=https%3A%2F%2Fmatrix.org'));
+
+      final idpUrl = matrixService.getSsoRedirectUrl(
+        homeserverUrl: 'https://matrix.org',
+        redirectUrl: 'https://matrix.org',
+        idpId: 'github',
+      );
+      expect(idpUrl, equals('https://matrix.org/_matrix/client/v3/login/sso/redirect/github?redirectUrl=https%3A%2F%2Fmatrix.org'));
+    });
+
+    test('loginWithToken performs SSO token exchange', () async {
+      final mockClient = MockClient((request) async {
+        if (request.url.path == '/.well-known/matrix/client') {
+          return http.Response(jsonEncode({'m.homeserver': {'base_url': 'https://matrix.org'}}), 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/login') {
+          final body = jsonDecode(request.body);
+          if (body['type'] == 'm.login.token' && body['token'] == 'valid_sso_token') {
+            return http.Response(jsonEncode({
+              'access_token': 'sso_access_token_123',
+              'user_id': '@sso_user:matrix.org',
+              'device_id': 'SSO_DEV_1',
+            }), 200);
+          }
+          return http.Response(jsonEncode({'error': 'Invalid SSO token'}), 400);
+        }
+        return http.Response('{}', 200);
+      });
+
+      final service = MatrixService(dbService: dbService, client: mockClient);
+      await service.loginWithToken('valid_sso_token', homeserverUrl: 'https://matrix.org');
+
+      expect(service.isLoggedIn, isTrue);
+      expect(service.username, equals('@sso_user:matrix.org'));
+      expect(service.accessToken, equals('sso_access_token_123'));
+      expect(service.deviceId, equals('SSO_DEV_1'));
+    });
   });
 }

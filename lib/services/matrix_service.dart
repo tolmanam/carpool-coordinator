@@ -141,11 +141,86 @@ class MatrixService extends ChangeNotifier {
     notifyListeners();
   }
 
-  String getSsoRedirectUrl({String? homeserverUrl}) {
+  Future<Map<String, dynamic>> getLoginFlows({String? homeserverUrl}) async {
+    final hs = homeserverUrl != null && homeserverUrl.isNotEmpty
+        ? await discoverHomeserver(homeserverUrl)
+        : await discoverHomeserver(_homeserver);
+
+    try {
+      final uri = Uri.parse('$hs/_matrix/client/v3/login');
+      final response = await _client.get(uri);
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+    } catch (e) {
+      debugPrint('Error querying login flows: $e');
+    }
+    return {'flows': []};
+  }
+
+  String getSsoRedirectUrl({
+    String? homeserverUrl,
+    String redirectUrl = 'https://matrix.org',
+    String? idpId,
+  }) {
     final hs = homeserverUrl != null && homeserverUrl.isNotEmpty
         ? _cleanUrl(homeserverUrl)
         : _homeserver;
-    return '$hs/_matrix/client/v3/login/sso/redirect?redirectUrl=https://matrix.org';
+    final encodedRedirect = Uri.encodeComponent(redirectUrl);
+    if (idpId != null && idpId.isNotEmpty) {
+      return '$hs/_matrix/client/v3/login/sso/redirect/$idpId?redirectUrl=$encodedRedirect';
+    }
+    return '$hs/_matrix/client/v3/login/sso/redirect?redirectUrl=$encodedRedirect';
+  }
+
+  Future<void> loginWithToken(String token, {String? homeserverUrl}) async {
+    if (homeserverUrl != null && homeserverUrl.isNotEmpty) {
+      _homeserver = await discoverHomeserver(homeserverUrl);
+    } else {
+      _homeserver = await discoverHomeserver(_homeserver);
+    }
+
+    if (_isOffline) {
+      _username = '@sso_user:${Uri.parse(_homeserver).host}';
+      _accessToken = 'syt_${_username}_sso_token_${DateTime.now().millisecondsSinceEpoch}';
+      _deviceId = 'OFFLINE_DEVICE_SSO';
+      _isLoggedIn = true;
+    } else {
+      final loginUri = Uri.parse('$_homeserver/_matrix/client/v3/login');
+      final response = await _client.post(
+        loginUri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'type': 'm.login.token',
+          'token': token.trim(),
+          'initial_device_display_name': 'Carpool Coordinator App',
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        _accessToken = data['access_token'] as String;
+        _username = data['user_id'] as String;
+        _deviceId = data['device_id'] as String? ?? 'DEVICE_${DateTime.now().millisecondsSinceEpoch}';
+        _isLoggedIn = true;
+      } else {
+        final errJson = jsonDecode(response.body);
+        final errMsg = errJson['error'] ?? 'Matrix SSO token login failed (${response.statusCode})';
+        throw Exception(errMsg);
+      }
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('matrix_access_token', _accessToken);
+    await prefs.setString('matrix_username', _username);
+    await prefs.setString('matrix_homeserver', _homeserver);
+    await prefs.setString('matrix_device_id', _deviceId);
+
+    await uploadKeys();
+    await fetchDevices();
+    await syncJoinedRooms();
+
+    notifyListeners();
   }
 
   // --- Device Management & Verification ---
