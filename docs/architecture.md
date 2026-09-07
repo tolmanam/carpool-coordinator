@@ -37,7 +37,7 @@ To achieve **zero cloud hosting or database maintenance costs** and absolute pri
 
 ### Direct Mapping of Concepts
 
-* **Identity & Authentication**: Users authenticate with any Matrix homeserver using their standard Matrix ID (`@user:server.org`) and credentials. At least one adult per family has a Matrix ID to log in and participate on behalf of the family.
+* **Identity & Authentication**: Users authenticate with any Matrix homeserver using their standard Matrix ID (`@user:server.org`) and credentials. At least one adult per family has a Matrix ID to log in and participate on behalf of the family. (See [Matrix Connection Specification](MATRIX_CONNECTION.md) for homeserver auto-discovery, authentication, and sync resilience protocols).
 * **Family Group**: Modeled as a private Matrix Room containing household members (adults, children, drivers) and individual profile details (email, phone, avatar, emergency contact).
 * **Organization**: Represented as a Matrix Space (`m.space`) tagged with `org.carpool.organization: true` or a designated Carpool Coordinator space metadata property. Organizations manage shared schedules (iCal feeds).
 * **Carpool Circle**: Represented as child Matrix Rooms (`m.space.child`) under an Organization Space. Families in an Organization subdivide into overlapping circles to manage specific pickup/dropoff responsibilities.

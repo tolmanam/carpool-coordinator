@@ -1,6 +1,6 @@
 # Client-Side Flows & Internal APIs - Carpool Coordinator
 
-This document specifies the internal module contracts, background task interfaces, and the routing/TSP engine logic running client-side.
+This document specifies the internal module contracts, background task interfaces, and the routing/TSP engine logic running client-side. For Matrix server connection handling, homeserver discovery, exponential backoff sync loops, and offline queueing requirements, reference [Matrix Connection Specification](MATRIX_CONNECTION.md).
 
 ---
 

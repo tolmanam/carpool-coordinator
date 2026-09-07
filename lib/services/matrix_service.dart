@@ -44,6 +44,28 @@ class MatrixService extends ChangeNotifier {
     return cleaned;
   }
 
+  /// Resolves the canonical homeserver base URL via `/.well-known/matrix/client`.
+  /// Falls back to the sanitized domain if .well-known resolution fails.
+  Future<String> discoverHomeserver(String domainOrUrl) async {
+    final cleaned = _cleanUrl(domainOrUrl);
+    final uri = Uri.parse(cleaned);
+    final wellKnownUri = Uri.parse('${uri.scheme}://${uri.host}${uri.hasPort ? ':${uri.port}' : ''}/.well-known/matrix/client');
+
+    try {
+      final response = await _client.get(wellKnownUri).timeout(const Duration(seconds: 5));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final baseUrl = data['m.homeserver']?['base_url'] as String?;
+        if (baseUrl != null && baseUrl.isNotEmpty) {
+          return _cleanUrl(baseUrl);
+        }
+      }
+    } catch (e) {
+      debugPrint('Well-known discovery failed for $cleaned: $e. Using fallback URL.');
+    }
+    return cleaned;
+  }
+
   Future<void> loadSession() async {
     final prefs = await SharedPreferences.getInstance();
     _accessToken = prefs.getString('matrix_access_token') ?? '';
@@ -62,7 +84,9 @@ class MatrixService extends ChangeNotifier {
 
   Future<void> login(String username, String password, {String? homeserverUrl}) async {
     if (homeserverUrl != null && homeserverUrl.isNotEmpty) {
-      _homeserver = _cleanUrl(homeserverUrl);
+      _homeserver = await discoverHomeserver(homeserverUrl);
+    } else {
+      _homeserver = await discoverHomeserver(_homeserver);
     }
 
     final rawUser = username.trim();
@@ -241,13 +265,30 @@ class MatrixService extends ChangeNotifier {
     return {};
   }
 
+  // Helper to handle Matrix unauthorized/token invalidation responses
+  Future<void> _handleUnauthorizedResponse() async {
+    debugPrint('Matrix session unauthorized (M_UNKNOWN_TOKEN/401). Invalidating session.');
+    await logout();
+  }
+
   // --- Matrix Sync Loop & Event Handling ---
 
-  Future<void> syncJoinedRooms() async {
+  int _syncRetryBackoffMs = 0;
+
+  /// Calculates exponential backoff with jitter for retries.
+  /// Initial delay 2s, doubling up to max 60s, ±20% jitter.
+  @visibleForTesting
+  int calculateBackoff(int currentBackoffMs) {
+    if (currentBackoffMs == 0) return 2000;
+    final next = (currentBackoffMs * 2).clamp(2000, 60000);
+    return next;
+  }
+
+  Future<void> syncJoinedRooms({int timeoutMs = 30000}) async {
     if (_isOffline || !_isLoggedIn) return;
 
     try {
-      var syncUrl = '$_homeserver/_matrix/client/v3/sync?timeout=10000';
+      var syncUrl = '$_homeserver/_matrix/client/v3/sync?timeout=$timeoutMs';
       if (_syncToken.isNotEmpty) {
         syncUrl += '&since=$_syncToken';
       }
@@ -258,6 +299,7 @@ class MatrixService extends ChangeNotifier {
       );
 
       if (response.statusCode == 200) {
+        _syncRetryBackoffMs = 0; // Reset backoff on success
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         _syncToken = data['next_batch'] as String? ?? _syncToken;
 
@@ -311,9 +353,20 @@ class MatrixService extends ChangeNotifier {
           );
           await dbService.insertSchedule(schedule);
         }
+      } else if (response.statusCode == 401) {
+        await _handleUnauthorizedResponse();
+      } else if (response.statusCode == 429) {
+        final errJson = jsonDecode(response.body);
+        final retryAfterMs = errJson['retry_after_ms'] as int? ?? 5000;
+        debugPrint('Matrix sync rate limited (429). Retrying after ${retryAfterMs}ms');
+        _syncRetryBackoffMs = retryAfterMs;
+      } else {
+        _syncRetryBackoffMs = calculateBackoff(_syncRetryBackoffMs);
+        debugPrint('Matrix sync failed (${response.statusCode}). Next backoff: ${_syncRetryBackoffMs}ms');
       }
     } catch (e) {
-      debugPrint('Error syncing Matrix events: $e');
+      _syncRetryBackoffMs = calculateBackoff(_syncRetryBackoffMs);
+      debugPrint('Error syncing Matrix events: $e. Next backoff: ${_syncRetryBackoffMs}ms');
     }
   }
 
