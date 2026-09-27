@@ -5,9 +5,13 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'database_service.dart';
+import 'matrix_rust_sdk_binding.dart';
 import '../models/models.dart';
 
 class MatrixService extends ChangeNotifier {
+  MatrixRustSdkBinding? _rustSdkBinding;
+
+  MatrixRustSdkBinding? get rustSdkBinding => _rustSdkBinding;
   final DatabaseService dbService;
   final http.Client _client;
 
@@ -133,6 +137,13 @@ class MatrixService extends ChangeNotifier {
     await prefs.setString('matrix_username', _username);
     await prefs.setString('matrix_homeserver', _homeserver);
     await prefs.setString('matrix_device_id', _deviceId);
+
+    _rustSdkBinding = MatrixRustSdkBinding(
+      homeserver: _homeserver,
+      userId: _username,
+      deviceId: _deviceId,
+    );
+    await _rustSdkBinding?.initializeSession();
 
     await uploadKeys();
     await fetchDevices();
