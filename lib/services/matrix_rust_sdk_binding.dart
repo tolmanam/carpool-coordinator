@@ -1,15 +1,16 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:ffi';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
+
+import 'matrix_rust_sdk_ffi_stub.dart'
+    if (dart.library.ffi) 'matrix_rust_sdk_ffi_native.dart';
 
 /// Dart FFI & Abstraction interface for matrix-rust-sdk native bindings.
 /// Supports zero-trust Olm/Megolm E2EE encryption, session creation,
 /// and key exchange with graceful fallback to REST API simulation when
 /// native shared libraries are not present on the host platform.
 class MatrixRustSdkBinding {
-  static DynamicLibrary? _nativeLib;
+  static Object? _nativeLib;
   static bool _isNativeAvailable = false;
 
   final String homeserver;
@@ -34,19 +35,15 @@ class MatrixRustSdkBinding {
     if (_nativeLib != null) return;
 
     try {
-      if (Platform.isAndroid) {
-        _nativeLib = DynamicLibrary.open('libmatrix_sdk_ffi.so');
-        _isNativeAvailable = true;
-      } else if (Platform.isIOS || Platform.isMacOS) {
-        _nativeLib = DynamicLibrary.process();
-        _isNativeAvailable = true;
-      } else if (Platform.isLinux) {
-        _nativeLib = DynamicLibrary.open('libmatrix_sdk_ffi.so');
-        _isNativeAvailable = true;
-      } else if (Platform.isWindows) {
-        _nativeLib = DynamicLibrary.open('matrix_sdk_ffi.dll');
-        _isNativeAvailable = true;
+      if (NativeLibraryLoader.isNativeAvailable()) {
+        final lib = NativeLibraryLoader.loadNativeLibrary();
+        if (lib != null) {
+          _nativeLib = lib;
+          _isNativeAvailable = true;
+          return;
+        }
       }
+      _isNativeAvailable = false;
     } catch (e) {
       _isNativeAvailable = false;
       debugPrint('MatrixRustSdkBinding: Native FFI library not available ($e). Using Dart REST fallback mode.');
