@@ -22,6 +22,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   List<LocalIcalEvent> _events = [];
   List<Signup> _signups = [];
   List<FamilyMember> _members = [];
+  List<Announcement> _announcements = [];
   Schedule? _activeSchedule;
 
   @override
@@ -41,6 +42,8 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       _activeSchedule = schedules.first;
       events = await db.getIcalEvents(_activeSchedule!.scheduleId);
       signups = await db.getSignups(_activeSchedule!.scheduleId);
+      final anns = await db.getAnnouncements(_activeSchedule!.scheduleId);
+      if (mounted) setState(() => _announcements = anns);
     } else {
       _activeSchedule = null;
     }
@@ -55,6 +58,83 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  void _handleSendAnnouncementDialog() {
+    if (_activeSchedule == null) return;
+
+    final titleController = TextEditingController();
+    final messageController = TextEditingController();
+    bool isUrgent = false;
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Broadcast Schedule Announcement'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: titleController,
+                    decoration: const InputDecoration(
+                      labelText: 'Announcement Title',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: messageController,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Message Body',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  CheckboxListTile(
+                    title: const Text('Urgent Alert / Cancellation'),
+                    subtitle: const Text('Dispatches high-priority org.carpool.urgent_alert event'),
+                    value: isUrgent,
+                    onChanged: (v) {
+                      if (v != null) setDialogState(() => isUrgent = v);
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    final title = titleController.text.trim();
+                    final msg = messageController.text.trim();
+                    if (title.isNotEmpty && msg.isNotEmpty) {
+                      final matrix = Provider.of<MatrixService>(context, listen: false);
+                      await matrix.sendScheduleAnnouncement(
+                        _activeSchedule!.scheduleId,
+                        title,
+                        msg,
+                        isUrgent: isUrgent,
+                      );
+                      if (ctx.mounted) {
+                        Navigator.pop(ctx);
+                        await _loadData();
+                      }
+                    }
+                  },
+                  child: const Text('Broadcast Announcement'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   void _showOnboarding() {
@@ -108,15 +188,75 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         return;
       }
 
-      await db.insertSignup(
-        Signup(
-          id: 'signup_${DateTime.now().millisecondsSinceEpoch}',
-          scheduleId: _activeSchedule!.scheduleId,
-          eventTimestamp: event.startTime,
-          memberId: childMember.memberId,
-          role: 'rider',
-          status: 'scheduled',
-        ),
+      String equipmentTags = '';
+      int boosterCount = childMember.requiresBoosterSeat ? 1 : 0;
+
+      if (mounted) {
+        final equipController = TextEditingController();
+        final dialogRes = await showDialog<Map<String, dynamic>>(
+          context: context,
+          builder: (ctx) {
+            int boosterVal = boosterCount;
+            return StatefulBuilder(
+              builder: (context, setDialogState) {
+                return AlertDialog(
+                  title: const Text('Ride Details & Logistics'),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextField(
+                        controller: equipController,
+                        decoration: const InputDecoration(
+                          labelText: 'Equipment / Cargo Tags (e.g. gear bag, cello)',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          const Text('Booster Seats Required: '),
+                          DropdownButton<int>(
+                            value: boosterVal,
+                            items: [0, 1, 2, 3]
+                                .map((b) => DropdownMenuItem(value: b, child: Text('$b')))
+                                .toList(),
+                            onChanged: (v) {
+                              if (v != null) setDialogState(() => boosterVal = v);
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('Cancel')),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx, {
+                        'equipment': equipController.text.trim(),
+                        'booster': boosterVal,
+                      }),
+                      child: const Text('Confirm Ride'),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+
+        if (dialogRes == null) return;
+        equipmentTags = dialogRes['equipment'] as String? ?? '';
+        boosterCount = dialogRes['booster'] as int? ?? boosterCount;
+      }
+
+      await matrix.sendSignup(
+        _activeSchedule!.scheduleId,
+        childMember.memberId,
+        'rider',
+        'scheduled',
+        event.startTime,
+        equipmentTags: equipmentTags,
+        boosterCount: boosterCount,
       );
     }
 
@@ -273,13 +413,61 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             ),
             const SizedBox(height: 20),
 
-            Text(
-              'Upcoming Commutes',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Upcoming Commutes',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _handleSendAnnouncementDialog,
+                  icon: const Icon(Icons.campaign, size: 18),
+                  label: const Text('Announce'),
+                ),
+              ],
             ),
             const SizedBox(height: 12),
+
+            // US-309 & US-311 Urgent Announcements / Schedule Alerts Banners
+            ..._announcements.map((ann) {
+              final isUrgent = ann.isUrgent;
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isUrgent ? Colors.red.shade100 : Colors.blue.shade100,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: isUrgent ? Colors.red.shade700 : Colors.blue.shade700),
+                ),
+                child: Row(
+                  children: [
+                    Icon(isUrgent ? Icons.warning_amber : Icons.campaign, color: isUrgent ? Colors.red : Colors.blue),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            ann.title,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: isUrgent ? Colors.red.shade900 : Colors.blue.shade900,
+                            ),
+                          ),
+                          Text(
+                            ann.message,
+                            style: TextStyle(fontSize: 12, color: isUrgent ? Colors.red.shade900 : Colors.blue.shade900),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
 
             Builder(
               builder: (context) {
@@ -419,6 +607,24 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                                 Expanded(child: Text(riderNames.isNotEmpty ? riderNames : 'No riders registered')),
                               ],
                             ),
+                            if (riderSignups.any((r) => r.equipmentTags.isNotEmpty || r.boosterCount > 0)) ...[
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  const Icon(Icons.work_outline, size: 16, color: Colors.deepOrange),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      riderSignups
+                                          .where((r) => r.equipmentTags.isNotEmpty || r.boosterCount > 0)
+                                          .map((r) => '${r.equipmentTags.isNotEmpty ? "Gear: ${r.equipmentTags}" : ""}${r.boosterCount > 0 ? " [Booster: ${r.boosterCount}]" : ""}')
+                                          .join('; '),
+                                      style: const TextStyle(fontSize: 12, color: Colors.deepOrange),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ],
                         ),
                       ),

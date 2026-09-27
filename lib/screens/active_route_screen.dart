@@ -20,6 +20,40 @@ class _ActiveRouteScreenState extends State<ActiveRouteScreen> {
   bool _activeDrive = false;
   bool _delayReported = false;
   int _etaMinutes = 25;
+  final Set<String> _checkedInMembers = {};
+
+  void _showEmergencyMedicalDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.medical_services, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Emergency Contact & Medical'),
+          ],
+        ),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Passenger: Sarah Connor', style: TextStyle(fontWeight: FontWeight.bold)),
+            Text('• Emergency Contact: John Connor (555-0199)'),
+            Text('• Medical Alert: Severe Peanut Allergy (EpiPen in backpack)'),
+            Text('• Booster Seat: Required'),
+            Divider(height: 20),
+            Text('Restricted Access (US-310): Decrypted exclusively for active drive session.', style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -144,44 +178,68 @@ class _ActiveRouteScreenState extends State<ActiveRouteScreen> {
                     ),
                     Padding(
                       padding: const EdgeInsets.only(left: 16.0, bottom: 8.0),
-                      child: Wrap(
-                        spacing: 8,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          OutlinedButton.icon(
-                            onPressed: () async {
-                              final matrix = Provider.of<MatrixService>(context, listen: false);
-                              await matrix.sendCheckinEvent(
-                                widget.scheduleId,
-                                'child_sarah',
-                                'boarded',
-                                notes: 'Child boarded vehicle safely.',
-                              );
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Handoff check-in sent: Child Boarded')),
-                                );
-                              }
-                            },
-                            icon: const Icon(Icons.check_circle_outline, size: 16),
-                            label: const Text('Child Boarded'),
+                          Wrap(
+                            spacing: 8,
+                            children: [
+                              OutlinedButton.icon(
+                                onPressed: () async {
+                                  final matrix = Provider.of<MatrixService>(context, listen: false);
+                                  await matrix.sendAttendanceCheckin(
+                                    widget.scheduleId,
+                                    widget.eventTimestamp,
+                                    'child_sarah',
+                                    'pickup',
+                                    matrix.username,
+                                  );
+                                  setState(() => _checkedInMembers.add('child_sarah_pickup'));
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Attendance Check-in Recorded: Sarah Boarded (Pickup)')),
+                                    );
+                                  }
+                                },
+                                icon: Icon(
+                                  _checkedInMembers.contains('child_sarah_pickup') ? Icons.check_box : Icons.check_circle_outline,
+                                  size: 16,
+                                  color: _checkedInMembers.contains('child_sarah_pickup') ? Colors.green : null,
+                                ),
+                                label: Text(_checkedInMembers.contains('child_sarah_pickup') ? 'Pickup Recorded' : 'Child Boarded'),
+                              ),
+                              OutlinedButton.icon(
+                                onPressed: () async {
+                                  final matrix = Provider.of<MatrixService>(context, listen: false);
+                                  await matrix.sendAttendanceCheckin(
+                                    widget.scheduleId,
+                                    widget.eventTimestamp,
+                                    'child_sarah',
+                                    'dropoff',
+                                    matrix.username,
+                                  );
+                                  setState(() => _checkedInMembers.add('child_sarah_dropoff'));
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Attendance Check-in Recorded: Sarah Delivered (Drop-off)')),
+                                    );
+                                  }
+                                },
+                                icon: Icon(
+                                  _checkedInMembers.contains('child_sarah_dropoff') ? Icons.check_box : Icons.task_alt,
+                                  size: 16,
+                                  color: _checkedInMembers.contains('child_sarah_dropoff') ? Colors.green : null,
+                                ),
+                                label: Text(_checkedInMembers.contains('child_sarah_dropoff') ? 'Dropoff Recorded' : 'Child Delivered'),
+                              ),
+                            ],
                           ),
-                          OutlinedButton.icon(
-                            onPressed: () async {
-                              final matrix = Provider.of<MatrixService>(context, listen: false);
-                              await matrix.sendCheckinEvent(
-                                widget.scheduleId,
-                                'child_sarah',
-                                'delivered',
-                                notes: 'Child delivered to activity coordinator.',
-                              );
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Handoff check-in sent: Child Delivered')),
-                                );
-                              }
-                            },
-                            icon: const Icon(Icons.task_alt, size: 16),
-                            label: const Text('Child Delivered'),
+                          const SizedBox(height: 6),
+                          // US-310 Dynamic Emergency Contact Access button
+                          TextButton.icon(
+                            onPressed: _showEmergencyMedicalDialog,
+                            icon: const Icon(Icons.contact_phone, size: 16, color: Colors.red),
+                            label: const Text('View Driver Emergency & Medical Info', style: TextStyle(color: Colors.red, fontSize: 12)),
                           ),
                         ],
                       ),

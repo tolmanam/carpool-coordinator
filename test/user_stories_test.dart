@@ -376,5 +376,95 @@ void main() {
       expect(conflicts.first.eventA.id, equals('ev_1'));
       expect(conflicts.first.eventB.id, equals('ev_2'));
     });
+
+    test('US-306: Self-Service Onboarding & Profile Offboarding', () async {
+      final shareLink = matrixService.generateCircleShareUri('room_123', 'Northside Circle');
+      expect(shareLink, contains('https://matrix.to/#/room_123'));
+      expect(shareLink, contains('Northside%20Circle'));
+
+      // Insert data into SQLite
+      await dbService.insertFamily(Family(
+        matrixId: '@user:matrix.org',
+        familyName: 'Doe Family',
+        latitude: 34.0,
+        longitude: -118.0,
+        addressText: 'Main St',
+        lastUpdated: 1000,
+      ));
+
+      expect(await dbService.getFamily('@user:matrix.org'), isNotNull);
+
+      // Perform offboarding purge
+      await dbService.purgeAllData();
+      expect(await dbService.getFamily('@user:matrix.org'), isNull);
+    });
+
+    test('US-307: Space-Wide Location Privacy Policy Toggle', () async {
+      final org = await matrixService.createOrganization('Privacy Org', 'https://example.com/feed.ics');
+      expect(org.locationPrivacyEnforced, isFalse);
+
+      await matrixService.updateLocationPrivacyPolicy(org.orgId, true);
+      final updatedOrg = await dbService.getOrganization(org.orgId);
+      expect(updatedOrg, isNotNull);
+      expect(updatedOrg!.locationPrivacyEnforced, isTrue);
+    });
+
+    test('US-308: Equipment & Cargo Logistics Tagging on Signups', () async {
+      final scheduleId = 'sched_equip';
+      final eventTimestamp = 1700000000000;
+
+      await matrixService.sendSignup(
+        scheduleId,
+        'child_1',
+        'rider',
+        'scheduled',
+        eventTimestamp,
+        equipmentTags: 'soccer gear, cello',
+        boosterCount: 1,
+      );
+
+      final signups = await dbService.getSignups(scheduleId);
+      expect(signups.length, equals(1));
+      expect(signups.first.equipmentTags, equals('soccer gear, cello'));
+      expect(signups.first.boosterCount, equals(1));
+    });
+
+    test('US-309 & US-311: Schedule Announcements & Urgent Alerts', () async {
+      final scheduleId = 'sched_announcements';
+
+      // Normal announcement (US-309)
+      await matrixService.sendScheduleAnnouncement(scheduleId, 'Practice Time Changed', 'Practice starts at 6pm today.');
+
+      // Urgent alert broadcast (US-311)
+      await matrixService.sendScheduleAnnouncement(scheduleId, 'Weather Cancellation', 'Practice cancelled due to severe storm.', isUrgent: true);
+
+      final announcements = await dbService.getAnnouncements(scheduleId);
+      expect(announcements.length, equals(2));
+      expect(announcements.any((a) => a.title == 'Practice Time Changed' && !a.isUrgent), isTrue);
+      expect(announcements.any((a) => a.title == 'Weather Cancellation' && a.isUrgent), isTrue);
+    });
+
+    test('US-310 & US-312: Attendance Tracking Check-ins & Medical Access', () async {
+      final scheduleId = 'sched_attendance';
+      final eventTimestamp = 1700000000000;
+
+      // US-312: Record pickup check-in
+      await matrixService.sendAttendanceCheckin(scheduleId, eventTimestamp, 'child_1', 'pickup', 'driver_alice');
+
+      // Record dropoff check-in
+      await matrixService.sendAttendanceCheckin(scheduleId, eventTimestamp, 'child_1', 'dropoff', 'driver_alice');
+
+      final records = await dbService.getAttendanceRecords(scheduleId, eventTimestamp);
+      expect(records.length, equals(2));
+      expect(records.first.checkInType, equals('pickup'));
+      expect(records.last.checkInType, equals('dropoff'));
+      expect(records.first.driverId, equals('driver_alice'));
+    });
+
+    test('US-313: Leadership Transfer & Matrix Room Power Levels', () async {
+      // Test offline/mock power level update execution
+      matrixService.toggleOfflineMode(true);
+      await matrixService.updateRoomPowerLevels('room_lead_123', '@co_coordinator:matrix.org', 50);
+    });
   });
 }

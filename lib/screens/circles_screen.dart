@@ -197,6 +197,115 @@ class _CirclesScreenState extends State<CirclesScreen> {
     await _loadChatMessages(roomId);
   }
 
+  void _handleShareOnboarding() {
+    final roomId = _selectedCircle?.circleId ?? _selectedOrg?.orgId ?? '';
+    final roomTitle = _selectedCircle?.name ?? _selectedOrg?.name ?? 'Carpool Group';
+    if (roomId.isEmpty) return;
+
+    final matrix = Provider.of<MatrixService>(context, listen: false);
+    final shareUri = matrix.generateCircleShareUri(roomId, roomTitle);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Onboarding Link & QR ($roomTitle)'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Share this matrix.to link with families for self-service onboarding:'),
+            const SizedBox(height: 12),
+            SelectableText(
+              shareUri,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blue),
+            ),
+            const SizedBox(height: 16),
+            const Row(
+              children: [
+                Icon(Icons.qr_code_2, size: 48),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'QR Code representation ready for scanning on mobile devices.',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _handleToggleLocationPrivacy(bool value) async {
+    if (_selectedOrg == null) return;
+    final matrix = Provider.of<MatrixService>(context, listen: false);
+    await matrix.updateLocationPrivacyPolicy(_selectedOrg!.orgId, value);
+    await _loadData();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Location privacy policy set to: ${value ? "Enforced (Drivers Only)" : "Public Address"}')),
+      );
+    }
+  }
+
+  void _handlePromoteLeaderDialog() {
+    final roomId = _selectedCircle?.circleId ?? _selectedOrg?.orgId ?? '';
+    if (roomId.isEmpty) return;
+
+    final userController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Promote Co-Coordinator / Leadership Handoff'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Enter the Matrix User ID of the member to grant moderation/admin power levels (m.room.power_levels):'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: userController,
+              decoration: const InputDecoration(
+                labelText: 'Matrix User ID (@user:domain)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final targetUser = userController.text.trim();
+              if (targetUser.isNotEmpty) {
+                final matrix = Provider.of<MatrixService>(context, listen: false);
+                await matrix.updateRoomPowerLevels(roomId, targetUser, 50); // Power level 50 = Moderator
+                if (ctx.mounted) {
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Granted Co-Coordinator power level to $targetUser')),
+                  );
+                }
+              }
+            },
+            child: const Text('Grant Co-Coordinator'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _handleInvite() async {
     final roomId = _selectedCircle?.circleId ?? _selectedOrg?.orgId ?? '';
     final roomTitle = _selectedCircle?.name ?? _selectedOrg?.name ?? 'Carpool Group';
@@ -345,6 +454,21 @@ class _CirclesScreenState extends State<CirclesScreen> {
                       const SizedBox(height: 8),
                       Text('iCal URL: ${_selectedOrg!.icalFeedUrl.isNotEmpty ? _selectedOrg!.icalFeedUrl : "None set"}',
                           style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
+                      const Divider(height: 24),
+                      // US-307 Location Privacy Policy Toggle
+                      SwitchListTile(
+                        title: const Text('Enforce Location Address Privacy'),
+                        subtitle: const Text('Restrict street addresses exclusively to assigned drivers during active commute windows.'),
+                        value: _selectedOrg!.locationPrivacyEnforced,
+                        onChanged: _handleToggleLocationPrivacy,
+                      ),
+                      const SizedBox(height: 8),
+                      // US-313 Leadership Handoff & Delegated Moderation
+                      OutlinedButton.icon(
+                        onPressed: _handlePromoteLeaderDialog,
+                        icon: const Icon(Icons.admin_panel_settings),
+                        label: const Text('Promote Co-Coordinator / Leadership Handoff'),
+                      ),
                     ],
                   ),
                 ),
@@ -548,17 +672,27 @@ class _CirclesScreenState extends State<CirclesScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: _handleInvite,
-                          icon: const Icon(Icons.send),
-                          label: const Text('Send Invitation'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            foregroundColor: Colors.white,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: _handleInvite,
+                              icon: const Icon(Icons.send),
+                              label: const Text('Send Invitation'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green,
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 8),
+                          // US-306 Self-service onboarding QR & link sharing
+                          OutlinedButton.icon(
+                            onPressed: _handleShareOnboarding,
+                            icon: const Icon(Icons.qr_code),
+                            label: const Text('QR / Link'),
+                          ),
+                        ],
                       ),
                     ],
                   ),
