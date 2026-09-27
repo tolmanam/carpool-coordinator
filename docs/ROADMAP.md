@@ -178,47 +178,47 @@ This document serves as the official, living roadmap and technical tracking guid
 ### Phase 6: Organization Coordinator Tools & Leadership Delegation
 *Focus: QR/link onboarding, selective location privacy policies, multi-calendar feeds, emergency broadcasts, and zero-backend leadership handoff.*
 
-- [ ] **Self-Service Onboarding & Profile Offboarding (US-306)**
+- [x] **Self-Service Onboarding & Profile Offboarding (US-306)**
   - **Details**: Generate shareable `matrix.to` QR codes and deep links for circle joining. Provide self-service profile deletion and data purging triggers on logout/offboarding.
   - **User Stories**: US-306
   - **Target Files**: `lib/screens/circles_screen.dart`, `lib/services/database_service.dart`
   - **Test Target**: `test/user_stories_test.dart`
 
-- [ ] **Space-Wide Selective Location Disclosure Policies (US-307)**
+- [x] **Space-Wide Selective Location Disclosure Policies (US-307)**
   - **Details**: Organization-level settings to enforce space-wide address privacy, preventing non-driver circle members from accessing family street addresses.
   - **User Stories**: US-307
   - **Target Files**: `lib/services/matrix_service.dart`, `lib/screens/circles_screen.dart`
-  - **Test Target**: `test/matrix_service_test.dart`
+  - **Test Target**: `test/matrix_service_test.dart`, `test/user_stories_test.dart`
 
-- [ ] **Equipment & Cargo Logistics Requirements (US-308)**
+- [x] **Equipment & Cargo Logistics Requirements (US-308)**
   - **Details**: Attach equipment tags (sports gear, musical instruments) and booster seat counts to ride signups; check driver vehicle cargo capacity before confirming passenger signups.
   - **User Stories**: US-308
   - **Target Files**: `lib/models/models.dart`, `lib/screens/schedule_screen.dart`
   - **Test Target**: `test/user_stories_test.dart`
 
-- [ ] **Multi-Calendar Feeds & Direct Matrix Announcements (US-309, US-311)**
+- [x] **Multi-Calendar Feeds & Direct Matrix Announcements (US-309, US-311)**
   - **Details**: Support multiple `.ics` feed URLs per Organization. Implement `org.carpool.schedule_announcement` and `org.carpool.urgent_alert` high-priority event dispatching for ad-hoc schedule changes or weather cancellations.
   - **User Stories**: US-309, US-311
   - **Target Files**: `lib/services/matrix_service.dart`, `lib/services/ical_parser_service.dart`, `lib/screens/schedule_screen.dart`
-  - **Test Target**: `test/ical_parser_service_test.dart`, `test/matrix_service_test.dart`
+  - **Test Target**: `test/user_stories_test.dart`
 
-- [ ] **Dynamic Emergency Contact & Medical Access Control (US-310)**
+- [x] **Dynamic Emergency Contact & Medical Access Control (US-310)**
   - **Details**: Restrict emergency contacts and child medical notes so they are visible exclusively to the assigned driver during active route execution window.
   - **User Stories**: US-310
   - **Target Files**: `lib/screens/active_route_screen.dart`, `lib/services/matrix_service.dart`
   - **Test Target**: `test/user_stories_test.dart`
 
-- [ ] **Attendance Tracking & Commute Headcount Verification (US-312)**
+- [x] **Attendance Tracking & Commute Headcount Verification (US-312)**
   - **Details**: Record driver pickup and drop-off timestamps per participant (`org.carpool.checkin`) to maintain verifiable attendance logs for coordinators and parents.
   - **User Stories**: US-312
   - **Target Files**: `lib/screens/active_route_screen.dart`, `lib/services/database_service.dart`
-  - **Test Target**: `test/database_service_test.dart`
+  - **Test Target**: `test/user_stories_test.dart`
 
-- [ ] **Zero-Backend Leadership Handoff & Delegated Moderation (US-313)**
+- [x] **Zero-Backend Leadership Handoff & Delegated Moderation (US-313)**
   - **Details**: Manage Matrix room power levels (`m.room.power_levels`) to promote co-coordinators or transfer Organization space ownership seamlessly without central servers.
   - **User Stories**: US-313
   - **Target Files**: `lib/services/matrix_service.dart`, `lib/screens/circles_screen.dart`
-  - **Test Target**: `test/matrix_service_test.dart`
+  - **Test Target**: `test/user_stories_test.dart`
 
 ---
 

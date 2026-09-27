@@ -74,7 +74,9 @@ class DatabaseService extends ChangeNotifier {
             name TEXT NOT NULL,
             ical_feed_url TEXT,
             matrix_space_id TEXT,
-            homeserver_url TEXT DEFAULT 'https://matrix.org'
+            homeserver_url TEXT DEFAULT 'https://matrix.org',
+            location_privacy_enforced INTEGER DEFAULT 0,
+            additional_ical_feeds_json TEXT
           )
         ''');
 
@@ -140,7 +142,32 @@ class DatabaseService extends ChangeNotifier {
             member_id TEXT NOT NULL,
             role TEXT NOT NULL,
             status TEXT NOT NULL,
-            seat_capacity INTEGER DEFAULT 4
+            seat_capacity INTEGER DEFAULT 4,
+            equipment_tags TEXT,
+            booster_count INTEGER DEFAULT 0
+          )
+        ''');
+
+        await db.execute('''
+          CREATE TABLE cached_attendance_records (
+            id TEXT PRIMARY KEY,
+            schedule_id TEXT NOT NULL,
+            event_timestamp INTEGER NOT NULL,
+            member_id TEXT NOT NULL,
+            check_in_type TEXT NOT NULL,
+            timestamp INTEGER NOT NULL,
+            driver_id TEXT
+          )
+        ''');
+
+        await db.execute('''
+          CREATE TABLE cached_announcements (
+            id TEXT PRIMARY KEY,
+            schedule_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            message TEXT NOT NULL,
+            is_urgent INTEGER DEFAULT 0,
+            timestamp INTEGER NOT NULL
           )
         ''');
 
@@ -440,6 +467,65 @@ class DatabaseService extends ChangeNotifier {
 
   Future<void> deletePendingEvent(String id) async {
     await db.delete('cached_pending_events', where: 'id = ?', whereArgs: [id]);
+    notifyListeners();
+  }
+
+  // --- Attendance Records CRUD (US-312) ---
+  Future<List<AttendanceRecord>> getAttendanceRecords(String scheduleId, int eventTimestamp) async {
+    final res = await db.query(
+      'cached_attendance_records',
+      where: 'schedule_id = ? AND event_timestamp = ?',
+      whereArgs: [scheduleId, eventTimestamp],
+      orderBy: 'timestamp ASC',
+    );
+    return res.map((m) => AttendanceRecord.fromMap(m)).toList();
+  }
+
+  Future<void> insertAttendanceRecord(AttendanceRecord record) async {
+    await db.insert(
+      'cached_attendance_records',
+      record.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+    notifyListeners();
+  }
+
+  // --- Announcements CRUD (US-309, US-311) ---
+  Future<List<Announcement>> getAnnouncements(String scheduleId) async {
+    final res = await db.query(
+      'cached_announcements',
+      where: 'schedule_id = ?',
+      whereArgs: [scheduleId],
+      orderBy: 'timestamp DESC',
+    );
+    return res.map((m) => Announcement.fromMap(m)).toList();
+  }
+
+  Future<void> insertAnnouncement(Announcement announcement) async {
+    await db.insert(
+      'cached_announcements',
+      announcement.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+    notifyListeners();
+  }
+
+  // --- Data Purging / Offboarding (US-306, US-406) ---
+  Future<void> purgeAllData() async {
+    await db.delete('cached_families');
+    await db.delete('cached_family_members');
+    await db.delete('cached_organizations');
+    await db.delete('cached_carpool_circles');
+    await db.delete('cached_org_participants');
+    await db.delete('cached_chat_messages');
+    await db.delete('cached_schedules');
+    await db.delete('local_ical_events');
+    await db.delete('cached_signups');
+    await db.delete('cached_routes');
+    await db.delete('cached_pending_events');
+    await db.delete('cached_attendance_records');
+    await db.delete('cached_announcements');
+    await db.delete('local_settings');
     notifyListeners();
   }
 }

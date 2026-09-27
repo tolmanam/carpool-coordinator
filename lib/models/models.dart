@@ -112,6 +112,8 @@ class Organization {
   final String icalFeedUrl;
   final String matrixSpaceId;
   final String homeserverUrl;
+  final bool locationPrivacyEnforced;
+  final String additionalIcalFeedsJson;
 
   Organization({
     required this.orgId,
@@ -119,6 +121,8 @@ class Organization {
     required this.icalFeedUrl,
     this.matrixSpaceId = '',
     this.homeserverUrl = 'https://matrix.org',
+    this.locationPrivacyEnforced = false,
+    this.additionalIcalFeedsJson = '',
   });
 
   Map<String, dynamic> toMap() => {
@@ -127,6 +131,8 @@ class Organization {
         'ical_feed_url': icalFeedUrl,
         'matrix_space_id': matrixSpaceId,
         'homeserver_url': homeserverUrl,
+        'location_privacy_enforced': locationPrivacyEnforced ? 1 : 0,
+        'additional_ical_feeds_json': additionalIcalFeedsJson,
       };
 
   factory Organization.fromMap(Map<String, dynamic> map) => Organization(
@@ -135,6 +141,8 @@ class Organization {
         icalFeedUrl: map['ical_feed_url'] as String? ?? '',
         matrixSpaceId: map['matrix_space_id'] as String? ?? '',
         homeserverUrl: map['homeserver_url'] as String? ?? 'https://matrix.org',
+        locationPrivacyEnforced: map['location_privacy_enforced'] == 1 || map['location_privacy_enforced'] == true,
+        additionalIcalFeedsJson: map['additional_ical_feeds_json'] as String? ?? '',
       );
 }
 
@@ -314,6 +322,8 @@ class Signup {
   final String role;   // 'rider' | 'driver'
   final String status; // 'scheduled' | 'canceled'
   final int seatCapacity;
+  final String equipmentTags;
+  final int boosterCount;
 
   Signup({
     required this.id,
@@ -323,6 +333,8 @@ class Signup {
     required this.role,
     required this.status,
     this.seatCapacity = 4,
+    this.equipmentTags = '',
+    this.boosterCount = 0,
   });
 
   Map<String, dynamic> toMap() => {
@@ -333,6 +345,8 @@ class Signup {
         'role': role,
         'status': status,
         'seat_capacity': seatCapacity,
+        'equipment_tags': equipmentTags,
+        'booster_count': boosterCount,
       };
 
   factory Signup.fromMap(Map<String, dynamic> map) => Signup(
@@ -343,6 +357,84 @@ class Signup {
         role: map['role'] as String,
         status: map['status'] as String,
         seatCapacity: map['seat_capacity'] as int? ?? 4,
+        equipmentTags: map['equipment_tags'] as String? ?? '',
+        boosterCount: map['booster_count'] as int? ?? 0,
+      );
+}
+
+class AttendanceRecord {
+  final String id;
+  final String scheduleId;
+  final int eventTimestamp;
+  final String memberId;
+  final String checkInType; // 'pickup' | 'dropoff'
+  final int timestamp;
+  final String driverId;
+
+  AttendanceRecord({
+    required this.id,
+    required this.scheduleId,
+    required this.eventTimestamp,
+    required this.memberId,
+    required this.checkInType,
+    required this.timestamp,
+    required this.driverId,
+  });
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'schedule_id': scheduleId,
+        'event_timestamp': eventTimestamp,
+        'member_id': memberId,
+        'check_in_type': checkInType,
+        'timestamp': timestamp,
+        'driver_id': driverId,
+      };
+
+  factory AttendanceRecord.fromMap(Map<String, dynamic> map) => AttendanceRecord(
+        id: map['id'] as String,
+        scheduleId: map['schedule_id'] as String,
+        eventTimestamp: map['event_timestamp'] as int,
+        memberId: map['member_id'] as String,
+        checkInType: map['check_in_type'] as String,
+        timestamp: map['timestamp'] as int,
+        driverId: map['driver_id'] as String? ?? '',
+      );
+}
+
+class Announcement {
+  final String id;
+  final String scheduleId;
+  final String title;
+  final String message;
+  final bool isUrgent;
+  final int timestamp;
+
+  Announcement({
+    required this.id,
+    required this.scheduleId,
+    required this.title,
+    required this.message,
+    this.isUrgent = false,
+    required this.timestamp,
+  });
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'schedule_id': scheduleId,
+        'title': title,
+        'message': message,
+        'is_urgent': isUrgent ? 1 : 0,
+        'timestamp': timestamp,
+      };
+
+  factory Announcement.fromMap(Map<String, dynamic> map) => Announcement(
+        id: map['id'] as String,
+        scheduleId: map['schedule_id'] as String,
+        title: map['title'] as String,
+        message: map['message'] as String,
+        isUrgent: map['is_urgent'] == 1 || map['is_urgent'] == true,
+        timestamp: map['timestamp'] as int,
       );
 }
 

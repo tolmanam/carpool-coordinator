@@ -447,7 +447,16 @@ class MatrixService extends ChangeNotifier {
 
   // --- Event Dispatching ---
 
-  Future<void> sendSignup(String scheduleId, String memberId, String role, String status, int eventTimestamp) async {
+  Future<void> sendSignup(
+    String scheduleId,
+    String memberId,
+    String role,
+    String status,
+    int eventTimestamp, {
+    String equipmentTags = '',
+    int boosterCount = 0,
+    int seatCapacity = 4,
+  }) async {
     final signup = Signup(
       id: 'signup_${DateTime.now().millisecondsSinceEpoch}',
       scheduleId: scheduleId,
@@ -455,6 +464,9 @@ class MatrixService extends ChangeNotifier {
       memberId: memberId,
       role: role,
       status: status,
+      seatCapacity: seatCapacity,
+      equipmentTags: equipmentTags,
+      boosterCount: boosterCount,
     );
     await dbService.insertSignup(signup);
 
@@ -473,10 +485,176 @@ class MatrixService extends ChangeNotifier {
           'role': role,
           'status': status,
           'event_timestamp': eventTimestamp,
+          'seat_capacity': seatCapacity,
+          'equipment_tags': equipmentTags,
+          'booster_count': boosterCount,
         }),
       );
     }
     notifyListeners();
+  }
+
+  // --- Phase 6: Announcements & Urgent Alerts (US-309, US-311) ---
+
+  Future<void> sendScheduleAnnouncement(
+    String scheduleId,
+    String title,
+    String message, {
+    bool isUrgent = false,
+  }) async {
+    final announcement = Announcement(
+      id: 'ann_${DateTime.now().millisecondsSinceEpoch}',
+      scheduleId: scheduleId,
+      title: title,
+      message: message,
+      isUrgent: isUrgent,
+      timestamp: DateTime.now().millisecondsSinceEpoch,
+    );
+    await dbService.insertAnnouncement(announcement);
+
+    if (!_isOffline && _isLoggedIn) {
+      final txnId = 'm${DateTime.now().millisecondsSinceEpoch}';
+      final eventType = isUrgent ? 'org.carpool.urgent_alert' : 'org.carpool.schedule_announcement';
+      final uri = Uri.parse('$_homeserver/_matrix/client/v3/rooms/$scheduleId/send/$eventType/$txnId');
+
+      try {
+        await _client.put(
+          uri,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $_accessToken',
+          },
+          body: jsonEncode({
+            'title': title,
+            'message': message,
+            'is_urgent': isUrgent,
+            'timestamp': announcement.timestamp,
+          }),
+        );
+      } catch (e) {
+        debugPrint('Error sending Matrix announcement: $e');
+      }
+    }
+    notifyListeners();
+  }
+
+  // --- Phase 6: Leadership Transfer & Moderation Power Levels (US-313) ---
+
+  Future<void> updateRoomPowerLevels(String roomId, String targetUserId, int powerLevel) async {
+    if (_isOffline || !_isLoggedIn) {
+      debugPrint('Offline/mock room power level update for $targetUserId -> $powerLevel in $roomId');
+      notifyListeners();
+      return;
+    }
+
+    try {
+      final stateUri = Uri.parse('$_homeserver/_matrix/client/v3/rooms/$roomId/state/m.room.power_levels/');
+      final response = await _client.get(
+        stateUri,
+        headers: {'Authorization': 'Bearer $_accessToken'},
+      );
+
+      Map<String, dynamic> powerLevelsContent = {
+        'users': {
+          _username: 100,
+          targetUserId: powerLevel,
+        },
+        'users_default': 0,
+        'events_default': 0,
+        'state_default': 50,
+        'ban': 50,
+        'kick': 50,
+        'redact': 50,
+      };
+
+      if (response.statusCode == 200) {
+        powerLevelsContent = jsonDecode(response.body) as Map<String, dynamic>;
+        final usersMap = Map<String, dynamic>.from(powerLevelsContent['users'] as Map? ?? {});
+        usersMap[targetUserId] = powerLevel;
+        powerLevelsContent['users'] = usersMap;
+      }
+
+      await _client.put(
+        stateUri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $_accessToken',
+        },
+        body: jsonEncode(powerLevelsContent),
+      );
+    } catch (e) {
+      debugPrint('Error updating Matrix room power levels: $e');
+    }
+    notifyListeners();
+  }
+
+  // --- Phase 6: Location Privacy Disclosure Policies (US-307) ---
+
+  Future<void> updateLocationPrivacyPolicy(String orgId, bool enforcePrivacy) async {
+    final existingOrg = await dbService.getOrganization(orgId);
+    if (existingOrg != null) {
+      final updatedOrg = Organization(
+        orgId: existingOrg.orgId,
+        name: existingOrg.name,
+        icalFeedUrl: existingOrg.icalFeedUrl,
+        matrixSpaceId: existingOrg.matrixSpaceId,
+        homeserverUrl: existingOrg.homeserverUrl,
+        locationPrivacyEnforced: enforcePrivacy,
+        additionalIcalFeedsJson: existingOrg.additionalIcalFeedsJson,
+      );
+      await dbService.insertOrganization(updatedOrg);
+    }
+
+    if (!_isOffline && _isLoggedIn) {
+      try {
+        final uri = Uri.parse('$_homeserver/_matrix/client/v3/rooms/$orgId/state/org.carpool.location_policy/');
+        await _client.put(
+          uri,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $_accessToken',
+          },
+          body: jsonEncode({
+            'location_privacy_enforced': enforcePrivacy,
+            'updated_by': _username,
+          }),
+        );
+      } catch (e) {
+        debugPrint('Error updating location privacy policy: $e');
+      }
+    }
+    notifyListeners();
+  }
+
+  // --- Phase 6: Attendance Tracking & Verification (US-312) ---
+
+  Future<void> sendAttendanceCheckin(
+    String scheduleId,
+    int eventTimestamp,
+    String memberId,
+    String checkInType,
+    String driverId,
+  ) async {
+    final record = AttendanceRecord(
+      id: 'att_${DateTime.now().millisecondsSinceEpoch}_$memberId',
+      scheduleId: scheduleId,
+      eventTimestamp: eventTimestamp,
+      memberId: memberId,
+      checkInType: checkInType,
+      timestamp: DateTime.now().millisecondsSinceEpoch,
+      driverId: driverId,
+    );
+    await dbService.insertAttendanceRecord(record);
+
+    await sendCheckinEvent(scheduleId, memberId, checkInType, notes: 'Driver check-in: $checkInType');
+    notifyListeners();
+  }
+
+  // --- Phase 6: Onboarding QR & Deep Link Helper (US-306) ---
+
+  String generateCircleShareUri(String circleId, String circleName) {
+    final encodedId = Uri.encodeComponent(circleId);
+    return 'https://matrix.to/#/$encodedId?name=${Uri.encodeComponent(circleName)}';
   }
 
   Future<void> sendLocation(String scheduleId, double lat, double lng, List<Map<String, dynamic>> etaUpdates) async {
