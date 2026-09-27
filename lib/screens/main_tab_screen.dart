@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../widgets/about_app_dialog.dart';
 import 'schedule_screen.dart';
 import 'circles_screen.dart';
 import 'settings_screen.dart';
@@ -19,6 +20,13 @@ class _MainTabScreenState extends State<MainTabScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Carpool Coordinator'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.info_outline),
+            tooltip: 'About Application',
+            onPressed: () => showAboutAppDialog(context),
+          ),
+        ],
       ),
       body: IndexedStack(
         index: _currentIndex,

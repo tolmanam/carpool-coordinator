@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../services/matrix_service.dart';
 import '../services/database_service.dart';
 import '../models/models.dart';
+import '../widgets/about_app_dialog.dart';
+import '../config/app_info.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -479,6 +481,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 foregroundColor: Colors.red,
                 side: const BorderSide(color: Colors.red),
               ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          Text(
+            '6. About Application',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.info_outline),
+              title: const Text('About Carpool Coordinator'),
+              subtitle: Text('Version ${AppInfo.appVersion} (${AppInfo.gitTag})'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => showAboutAppDialog(context),
             ),
           ),
         ],
