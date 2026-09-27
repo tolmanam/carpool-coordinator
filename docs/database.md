@@ -1,6 +1,6 @@
 # Matrix Events & Client SQLite Schemas - Carpool Coordinator
 
-This document specifies the exact JSON schemas for custom Matrix events and the corresponding Drizzle ORM schemas for the local-first SQLite database.
+This document specifies the exact JSON schemas for custom Matrix events and the corresponding SQLite database schemas implemented in Flutter via `DatabaseService` (`lib/services/database_service.dart`).
 
 ---
 
@@ -50,6 +50,7 @@ Defines a household's profile. Sent with the state key as the Matrix User ID of 
     ]
   }
 }
+```
 
 ### 1.1b. `org.carpool.organization` (Space / State Event)
 Defines an Organization space containing shared schedules and child Carpool Circle rooms.
@@ -112,7 +113,8 @@ Sent by a parent to sign up their family members as riders or themselves as driv
     "event_timestamp": 1698393600000,
     "member_id": "member_connor_1",
     "role": "rider",
-    "status": "scheduled"
+    "status": "scheduled",
+    "seat_capacity": 4
   }
 }
 ```
@@ -179,91 +181,142 @@ High-frequency ephemeral coordinate streaming. Contains real-time GPS locations 
 
 ---
 
-## 2. Client-Side SQLite Database Schema (Drizzle ORM)
+## 2. Client-Side SQLite Database Schema (Flutter `sqflite`)
 
-Below is the definitive schema for the local-first client-side SQLite database utilizing `expo-sqlite` and `drizzle-orm/sqlite-core`.
+The local offline database is managed in Flutter via `DatabaseService` (`lib/services/database_service.dart`) using `sqflite` (mobile), `sqflite_common_ffi` (desktop/tests), or `sqflite_common_ffi_web` (web).
 
-```typescript
-import { sqliteTable, text, real, integer, primaryKey } from 'drizzle-orm/sqlite-core';
+### Core Tables SQL Schema
 
-// Local key-value settings store
-export const localSettings = sqliteTable('local_settings', {
-  key: text('key').primaryKey(),
-  value: text('value').notNull(),
-});
+```sql
+-- App settings and Matrix credentials cache
+CREATE TABLE settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
 
-// Cached family profiles fetched from org.carpool.family.profile state events
-export const cachedFamilies = sqliteTable('cached_families', {
-  matrixId: text('matrix_id').primaryKey(), // Owner matrix username
-  familyName: text('family_name').notNull(),
-  latitude: real('latitude').notNull(),
-  longitude: real('longitude').notNull(),
-  addressText: text('address_text'),
-  lastUpdated: integer('last_updated', { mode: 'timestamp' }).notNull(),
-});
+-- Family profiles
+CREATE TABLE family_profiles (
+  family_id TEXT PRIMARY KEY,
+  family_name TEXT NOT NULL,
+  address_text TEXT NOT NULL,
+  latitude REAL NOT NULL,
+  longitude REAL NOT NULL
+);
 
-// Individual cached family members
-export const cachedFamilyMembers = sqliteTable('cached_family_members', {
-  memberId: text('member_id').primaryKey(), // Generated member unique identifier
-  matrixId: text('matrix_id')
-    .notNull()
-    .references(() => cachedFamilies.matrixId, { onDelete: 'cascade' }),
-  name: text('name').notNull(),
-  role: text('role').notNull(), // 'parent' | 'child'
-});
+-- Family members
+CREATE TABLE family_members (
+  member_id TEXT PRIMARY KEY,
+  family_id TEXT NOT NULL,
+  member_name TEXT NOT NULL,
+  role TEXT NOT NULL,
+  is_adult INTEGER NOT NULL DEFAULT 1,
+  can_drive INTEGER NOT NULL DEFAULT 0,
+  member_matrix_id TEXT DEFAULT '',
+  email TEXT DEFAULT '',
+  phone TEXT DEFAULT '',
+  avatar_url TEXT DEFAULT '',
+  emergency_contact TEXT DEFAULT '',
+  FOREIGN KEY (family_id) REFERENCES family_profiles (family_id) ON DELETE CASCADE
+);
 
-// Local cached copy of configured schedules/destinations (from state events)
-export const cachedSchedules = sqliteTable('cached_schedules', {
-  scheduleId: text('schedule_id').primaryKey(),
-  title: text('title').notNull(),
-  icalFeedUrl: text('ical_feed_url'),
-  latitude: real('latitude').notNull(),
-  longitude: real('longitude').notNull(),
-  addressText: text('address_text'),
-});
+-- Organizations (Matrix Spaces)
+CREATE TABLE organizations (
+  org_id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  ical_feed_url TEXT NOT NULL,
+  is_carpool_org INTEGER NOT NULL DEFAULT 1
+);
 
-// Parsed calendar instances extracted from the fetched iCal feeds
-export const localIcalEvents = sqliteTable('local_ical_events', {
-  id: text('id').primaryKey(), // Unique UID from iCal .ics
-  scheduleId: text('schedule_id')
-    .notNull()
-    .references(() => cachedSchedules.scheduleId, { onDelete: 'cascade' }),
-  title: text('title').notNull(),
-  startTime: integer('start_time').notNull(), // Unix timestamp (ms)
-  endTime: integer('end_time').notNull(),     // Unix timestamp (ms)
-});
+-- Carpool Circles (Child Rooms)
+CREATE TABLE carpool_circles (
+  circle_id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  room_id TEXT NOT NULL,
+  FOREIGN KEY (org_id) REFERENCES organizations (org_id) ON DELETE CASCADE
+);
 
-// Sign-ups synchronized from org.carpool.signup room messages
-export const cachedSignups = sqliteTable('cached_signups', {
-  id: text('id').primaryKey(), // Concatenation of scheduleId + timestamp + memberId
-  scheduleId: text('schedule_id').notNull(),
-  eventTimestamp: integer('event_timestamp').notNull(), // Matching iCal occurrence
-  memberId: text('member_id').notNull(),
-  role: text('role').notNull(),     // 'rider' | 'driver'
-  status: text('status').notNull(), // 'scheduled' | 'canceled' | 'sick'
-}, (table) => ({
-  pk: primaryKey({ columns: [table.scheduleId, table.eventTimestamp, table.memberId] }),
-}));
+-- Organization Participants
+CREATE TABLE organization_participants (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  member_id TEXT NOT NULL,
+  circle_id TEXT DEFAULT '',
+  FOREIGN KEY (org_id) REFERENCES organizations (org_id) ON DELETE CASCADE,
+  FOREIGN KEY (member_id) REFERENCES family_members (member_id) ON DELETE CASCADE
+);
 
-// Route structures synchronized from org.carpool.route messages
-export const cachedRoutes = sqliteTable('cached_routes', {
-  id: text('id').primaryKey(), // Concatenation of scheduleId + timestamp
-  scheduleId: text('schedule_id').notNull(),
-  eventTimestamp: integer('event_timestamp').notNull(),
-  driverId: text('driver_id').notNull(),
-  estimatedDeparture: integer('estimated_departure').notNull(),
-  waypointsJson: text('waypoints_json').notNull(), // Serialized waypoint sequence array
-  routePolyline: text('route_polyline'),           // Encoded route polyline
-}, (table) => ({
-  pk: primaryKey({ columns: [table.scheduleId, table.eventTimestamp] }),
-}));
+-- Chat Messages
+CREATE TABLE chat_messages (
+  message_id TEXT PRIMARY KEY,
+  room_id TEXT NOT NULL,
+  sender_id TEXT NOT NULL,
+  sender_name TEXT NOT NULL,
+  content TEXT NOT NULL,
+  timestamp INTEGER NOT NULL
+);
+
+-- Schedules
+CREATE TABLE schedules (
+  schedule_id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  ical_feed_url TEXT NOT NULL,
+  latitude REAL NOT NULL,
+  longitude REAL NOT NULL,
+  address_text TEXT NOT NULL,
+  FOREIGN KEY (org_id) REFERENCES organizations (org_id) ON DELETE CASCADE
+);
+
+-- Local iCal parsed events
+CREATE TABLE local_ical_events (
+  id TEXT PRIMARY KEY,
+  schedule_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  start_time INTEGER NOT NULL,
+  end_time INTEGER NOT NULL,
+  FOREIGN KEY (schedule_id) REFERENCES schedules (schedule_id) ON DELETE CASCADE
+);
+
+-- Signups (Ride / Driver)
+CREATE TABLE signups (
+  id TEXT PRIMARY KEY,
+  schedule_id TEXT NOT NULL,
+  event_timestamp INTEGER NOT NULL,
+  member_id TEXT NOT NULL,
+  role TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'scheduled',
+  seat_capacity INTEGER DEFAULT 4,
+  FOREIGN KEY (schedule_id) REFERENCES schedules (schedule_id) ON DELETE CASCADE,
+  FOREIGN KEY (member_id) REFERENCES family_members (member_id) ON DELETE CASCADE
+);
+
+-- Pending offline Matrix events queue
+CREATE TABLE pending_offline_events (
+  id TEXT PRIMARY KEY,
+  event_type TEXT NOT NULL,
+  room_id TEXT NOT NULL,
+  payload_json TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+
+-- Route Waypoints
+CREATE TABLE route_waypoints (
+  id TEXT PRIMARY KEY,
+  schedule_id TEXT NOT NULL,
+  event_timestamp INTEGER NOT NULL,
+  member_id TEXT NOT NULL,
+  type TEXT NOT NULL,
+  latitude REAL NOT NULL,
+  longitude REAL NOT NULL,
+  estimated_time INTEGER NOT NULL,
+  is_completed INTEGER NOT NULL DEFAULT 0,
+  FOREIGN KEY (schedule_id) REFERENCES schedules (schedule_id) ON DELETE CASCADE
+);
 ```
 
-### Schema Synchronisation Flow
+### Schema Synchronization Flow
 
-1. On App Launch, standard migrations run natively using:
-   ```typescript
-   import { migrate } from 'drizzle-orm/expo-sqlite/migrator';
-   ```
-2. When the Matrix sync engine receives a new state or message event, the client parses the event payload and inserts/upserts the matching record inside the local SQLite database.
-3. The UI queries the SQLite tables reactively using Drizzle query listeners or state hooks, ensuring instant, lag-free rendering of offline schedules.
+1. On App Launch, `DatabaseService.init()` initializes SQLite database tables across supported platforms.
+2. Incoming Matrix state and message events from `/sync` are parsed by `MatrixService` and updated in SQLite via `DatabaseService`.
+3. Flutter UI components observe state via Provider (`ChangeNotifierProvider`), ensuring reactive UI rendering.

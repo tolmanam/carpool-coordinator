@@ -1,295 +1,166 @@
 # Client-Side Flows & Internal APIs - Carpool Coordinator
 
-This document specifies the internal module contracts, background task interfaces, and the routing/TSP engine logic running client-side. For Matrix server connection handling, homeserver discovery, exponential backoff sync loops, and offline queueing requirements, reference [Matrix Connection Specification](MATRIX_CONNECTION.md).
+This document specifies the internal module contracts, background task interfaces, and the routing/TSP engine logic running client-side in Dart/Flutter. For Matrix server connection handling, homeserver discovery, exponential backoff sync loops, and offline queueing requirements, reference [Matrix Connection Specification](MATRIX_CONNECTION.md).
 
 ---
 
 ## 1. Matrix Authentication & Room Setup Flows
 
-Since this is a decentralized, serverless model, we interface directly with the user's selected Matrix homeserver.
+Since this is a decentralized, serverless model, we interface directly with the user's selected Matrix homeserver via `MatrixService` (`lib/services/matrix_service.dart`).
 
-```typescript
-export interface MatrixClientConfig {
-  baseUrl: string;
-  userId: string;
-  accessToken: string;
-  deviceId: string;
+```dart
+class MatrixClientConfig {
+  final String baseUrl;
+  final String userId;
+  final String accessToken;
+  final String deviceId;
+
+  MatrixClientConfig({
+    required this.baseUrl,
+    required this.userId,
+    required this.accessToken,
+    required this.deviceId,
+  });
 }
 
-/**
- * Devices API Interface
- */
-export interface MatrixDevice {
-  device_id: string;
-  display_name?: string;
-  last_seen_ip?: string;
-  last_seen_ts?: number;
-  verification_status: 'Verified' | 'Unverified' | 'Blocked';
-}
+class MatrixDevice {
+  final String deviceId;
+  final String? displayName;
+  final String? lastSeenIp;
+  final int? lastSeenTs;
+  final String verificationStatus; // 'Verified' | 'Unverified' | 'Blocked'
 
-/**
- * Initializes Matrix session, fetches user devices, uploads keys, and starts Matrix /sync loop.
- */
-export async function initializeMatrixSession(config: MatrixClientConfig): Promise<void> {
-  // 1. Store deviceId and accessToken in persistent storage
-  // 2. Query user devices via GET /_matrix/client/v3/devices
-  // 3. Upload device keys via POST /_matrix/client/v3/keys/upload
-  // 4. Begin Matrix /sync loop tracking next_batch token
-}
-
-/**
- * Sets up a private, end-to-end encrypted Matrix Room for a new carpool circle.
- */
-export async function createCarpoolCircle(roomName: string): Promise<string> {
-  const payload = {
-    preset: "private_chat",
-    name: roomName,
-    topic: "Shared family carpool coordination circle",
-    initial_state: [
-      {
-        type: "m.room.encryption",
-        state_key: "",
-        content: {
-          algorithm: "m.megolm.v1.aes-sha2"
-        }
-      }
-    ]
-  };
-
-  // POST /_matrix/client/v3/createRoom
-  // Returns roomId
+  MatrixDevice({
+    required this.deviceId,
+    this.displayName,
+    this.lastSeenIp,
+    this.lastSeenTs,
+    required this.verificationStatus,
+  });
 }
 ```
 
 ---
 
-## 2. iCal Parsing & Distributed Synchronization Worker
+## 2. iCal Parsing & Distributed Synchronization Service
 
-We implement a background worker utilizing `expo-task-manager` and `expo-background-fetch` that executes every 4–6 hours to pull updated calendars.
+We implement client-side iCal feed parsing in `IcalParserService` (`lib/services/ical_parser_service.dart`) with local SQLite synchronization via `DatabaseService`.
 
-```typescript
-import * as TaskManager from 'expo-task-manager';
-import * as BackgroundFetch from 'expo-background-fetch';
-
-export const ICAL_SYNC_TASK = 'BACKGROUND_ICAL_SYNC_TASK';
-
-/**
- * The task runner called by the OS background daemon.
- * Implements the decentralized state-locking algorithm to divide scraping duty.
- */
-TaskManager.defineTask(ICAL_SYNC_TASK, async () => {
-  try {
-    const schedules = await db.select().from(cachedSchedules);
-
-    for (const schedule of schedules) {
-      // 1. Query the current Matrix State Event 'org.carpool.ical_lock' for this scheduleId
-      const currentLock = await fetchMatrixRoomState(schedule.scheduleId, 'org.carpool.ical_lock');
-
-      const lastSync = currentLock?.content?.last_sync_timestamp || 0;
-      const fourHoursInMs = 4 * 60 * 60 * 1000;
-
-      // If synced recently by another client, skip to prevent API rate limits
-      if (Date.now() - lastSync < AmphoraSyncInterval) {
-        continue;
-      }
-
-      // 2. Fetch Lock Attempt: Post updated lock with current client metadata
-      await sendMatrixStateEvent(schedule.scheduleId, 'org.carpool.ical_lock', {
-        last_sync_timestamp: Date.now(),
-        synced_by: currentUserId,
-        ical_feed_url: schedule.icalFeedUrl,
-      });
-
-      // 3. Fetch external .ics payload
-      const response = await fetch(schedule.icalFeedUrl);
-      const icsString = await response.text();
-
-      // 4. Client-side parse iCal calendar
-      const occurrences = parseIcalString(icsString, schedule.scheduleId);
-
-      // 5. Update Local SQLite Index with new, altered, or deleted calendar dates
-      await reconcileLocalDatabaseEvents(schedule.scheduleId, occurrences);
-
-      // 6. Push updated occurrences to Matrix room state 'org.carpool.schedules'
-      await sendMatrixStateEvent(schedule.scheduleId, 'org.carpool.schedules', {
-        title: schedule.title,
-        ical_feed_url: schedule.icalFeedUrl,
-        destination: {
-          latitude: schedule.latitude,
-          longitude: schedule.longitude,
-          address_text: schedule.addressText
-        },
-        parsed_events: occurrences // Store current lookahead occurrences list directly in State
-      });
-    }
-
-    return BackgroundFetch.BackgroundFetchResult.NewData;
-  } catch (error) {
-    console.error("Background sync failure:", error);
-    return BackgroundFetch.BackgroundFetchResult.Failed;
+```dart
+class IcalParserService {
+  /// Parses RFC 5545 iCal feed string into local event instances.
+  List<LocalIcalEvent> parseIcalString(String icalContent, String scheduleId) {
+    // 1. Extract VEVENT blocks
+    // 2. Parse SUMMARY, DTSTART, DTEND, RRULE attributes
+    // 3. Resolve recurring occurrences
+    // 4. Return list of LocalIcalEvent objects
+    return [];
   }
-});
+}
 ```
 
 ---
 
 ## 3. Client-Side Route Optimizer (TSP Solver)
 
-The assigned driver's client runs a Traveling Salesperson Problem (TSP) solver locally to plan optimal routing waypoints and times.
+The assigned driver's client runs a Traveling Salesperson Problem (TSP) solver locally in `RouteOptimizerService` (`lib/services/route_optimizer_service.dart`) to plan optimal routing waypoints and times.
 
-```typescript
-export interface Waypoint {
-  memberId?: string; // Optional, empty for target Destination point
-  type: 'driver_start' | 'pickup' | 'destination';
-  latitude: number;
-  longitude: number;
-  estimatedTime?: number;
+```dart
+class RouteWaypoint {
+  final String id;
+  final String scheduleId;
+  final int eventTimestamp;
+  final String memberId;
+  final String type; // 'driver_start' | 'pickup' | 'destination'
+  final double latitude;
+  final double longitude;
+  final int estimatedTime; // Unix timestamp in ms
+  final bool isCompleted;
+
+  RouteWaypoint({
+    required this.id,
+    required this.scheduleId,
+    required this.eventTimestamp,
+    required this.memberId,
+    required this.type,
+    required this.latitude,
+    required this.longitude,
+    required this.estimatedTime,
+    this.isCompleted = false,
+  });
 }
 
-/**
- * Solves TSP using a Greedy Nearest Neighbor heuristic.
- * Perfect for typical carpools (<10 addresses) to avoid battery drain or paid APIs.
- */
-export function solveOptimalRoute(
-  driverHome: { latitude: number; longitude: number; memberId: string },
-  destination: { latitude: number; longitude: number },
-  riderAddresses: Array<{ latitude: number; longitude: number; memberId: string }>,
-  targetArrivalTime: number, // Unix Timestamp
-  averageSpeedKph: number = 30 // Typical urban driving velocity
-): Waypoint[] {
+class RouteOptimizerService {
+  /// Solves TSP using a Greedy Nearest Neighbor heuristic using Haversine distance formula.
+  List<RouteWaypoint> solveOptimalRoute({
+    required String scheduleId,
+    required int eventTimestamp,
+    required String driverMemberId,
+    required double driverLat,
+    required double driverLng,
+    required double destLat,
+    required double destLng,
+    required List<Map<String, dynamic>> riders, // [{ 'member_id': id, 'lat': lat, 'lng': lng }]
+    required int targetArrivalTime, // Unix timestamp in ms
+    double averageSpeedKph = 30.0,
+  }) {
+    List<Map<String, dynamic>> unvisited = List.from(riders);
+    double currentLat = driverLat;
+    double currentLng = driverLng;
 
-  let unvisited = [...riderAddresses];
-  let currentLoc = { ...driverHome };
-  const route: Waypoint[] = [
-    { memberId: driverHome.memberId, type: 'driver_start', latitude: driverHome.latitude, longitude: driverHome.longitude }
-  ];
+    List<Map<String, dynamic>> orderedStops = [];
 
-  // 1. Solve order by finding nearest neighbor incrementally
-  while (unvisited.length > 0) {
-    let nearestIdx = 0;
-    let minDistance = Infinity;
+    // 1. Order stops by nearest neighbor
+    while (unvisited.isNotEmpty) {
+      int nearestIdx = 0;
+      double minDistance = double.infinity;
 
-    for (let i = 0; i < unvisited.length; i++) {
-      const dist = calculateHaversineDistance(
-        currentLoc.latitude,
-        currentLoc.longitude,
-        unvisited[i].latitude,
-        unvisited[i].longitude
-      );
-      if (dist < minDistance) {
-        minDistance = dist;
-        nearestIdx = i;
+      for (int i = 0; i < unvisited.length; i++) {
+        double dist = calculateHaversineDistance(
+          currentLat,
+          currentLng,
+          unvisited[i]['lat'] as double,
+          unvisited[i]['lng'] as double,
+        );
+        if (dist < minDistance) {
+          minDistance = dist;
+          nearestIdx = i;
+        }
       }
+
+      var nextStop = unvisited.removeAt(nearestIdx);
+      orderedStops.add(nextStop);
+      currentLat = nextStop['lat'] as double;
+      currentLng = nextStop['lng'] as double;
     }
 
-    const nextStop = unvisited.splice(nearestIdx, 1)[0];
-    route.push({
-      memberId: nextStop.memberId,
-      type: 'pickup',
-      latitude: nextStop.latitude,
-      longitude: nextStop.longitude
-    });
-    currentLoc = nextStop;
+    // 2. Build waypoint list and back-calculate arrival timing working backwards from destination
+    // ...
+    return [];
   }
 
-  // 2. Add final target destination
-  route.push({
-    type: 'destination',
-    latitude: destination.latitude,
-    longitude: destination.longitude
-  });
+  /// Calculates spherical distance between coordinates in kilometers using Haversine formula.
+  static double calculateHaversineDistance(
+      double lat1, double lon1, double lat2, double lon2) {
+    const double r = 6371.0; // Earth's radius in kilometers
+    double dLat = _toRadians(lat2 - lat1);
+    double dLon = _toRadians(lon2 - lon1);
 
-  // 3. Back-calculate optimal pick-up arrival timing working backwards from Target Destination
-  let currentTimestamp = targetArrivalTime;
-
-  for (let i = route.length - 1; i > 0; i--) {
-    const endPoint = route[i];
-    const startPoint = route[i - 1];
-
-    const distanceKm = calculateHaversineDistance(
-      startPoint.latitude,
-      startPoint.longitude,
-      endPoint.latitude,
-      endPoint.longitude
-    );
-
-    const travelTimeMs = (distanceKm / averageSpeedKph) * 60 * 60 * 1000;
-    currentTimestamp = currentTimestamp - travelTimeMs;
-
-    startPoint.estimatedTime = currentTimestamp;
+    double a = sin(dLat / 2) * sin(dLat / 2) +
+        cos(_toRadians(lat1)) *
+            cos(_toRadians(lat2)) *
+            sin(dLon / 2) *
+            sin(dLon / 2);
+    double c = 2 * atan2(sqrt(a), sqrt(1 - a));
+    return r * c;
   }
 
-  route[route.length - 1].estimatedTime = targetArrivalTime;
-
-  return route;
-}
-
-/**
- * Calculates straight line spherical distance between coordinates.
- */
-function calculateHaversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371; // Earth's radius in kilometers
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a =
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c;
+  static double _toRadians(double degree) => degree * pi / 180.0;
 }
 ```
 
 ---
 
-## 4. Real-Time Tracking, Dynamic ETAs, and Alerts
+## 4. Real-Time Tracking, Dynamic ETAs, and Delay Alerts
 
-While driving, the driver's client periodically sends coordinates, updates estimated remaining times, and automatically dispatches notifications for late pickups.
-
-```typescript
-/**
- * Executes inside GPS location stream updates on the Driver's phone.
- * If driver is running behind schedule (> 5 min), sends an org.carpool.alert warning.
- */
-export async function processActiveGpsTick(
-  currentLocation: { latitude: number; longitude: number },
-  routeWaypoints: Waypoint[],
-  scheduleId: string,
-  eventTimestamp: number
-): Promise<void> {
-
-  // 1. Compute dynamic ETA changes for subsequent riders locally
-  const nextWaypoints = recalculateWaypointsEta(currentLocation, routeWaypoints);
-
-  // 2. Broadcast coordinates + precalculated ETA updates to Room
-  await sendMatrixRoomMessage(scheduleId, 'org.carpool.location', {
-    schedule_id: scheduleId,
-    event_timestamp: eventTimestamp,
-    latitude: currentLocation.latitude,
-    longitude: currentLocation.longitude,
-    eta_updates: nextWaypoints.map(wp => ({
-      member_id: wp.memberId,
-      type: wp.type,
-      estimated_arrival: wp.estimatedTime
-    }))
-  });
-
-  // 3. Monitor for delays
-  for (const wp of nextWaypoints) {
-    if (wp.type === 'pickup' && wp.originalScheduledTime && wp.estimatedTime) {
-      const delayMinutes = (wp.estimatedTime - wp.originalScheduledTime) / (60 * 1000);
-
-      // Dispatch room alert automatically if delay exceeds 5 minutes
-      if (delayMinutes > 5) {
-        await sendMatrixRoomMessage(scheduleId, 'org.carpool.alert', {
-          schedule_id: scheduleId,
-          event_timestamp: eventTimestamp,
-          alert_type: 'delay',
-          severity: 'warning',
-          message: `Carpool is running approx ${Math.round(delayMinutes)} mins behind schedule!`
-        });
-      }
-    }
-  }
-}
-```
+While driving, `ActiveRouteScreen` updates GPS coordinates, updates estimated remaining times, and automatically dispatches room alerts (`org.carpool.alert`) if running behind schedule (>5 minutes). Delayed alerts queue locally in SQLite if offline and broadcast upon reconnection.
