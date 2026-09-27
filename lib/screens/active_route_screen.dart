@@ -115,9 +115,75 @@ class _ActiveRouteScreenState extends State<ActiveRouteScreen> {
                     ),
                     ListTile(
                       leading: const Icon(Icons.person, color: Colors.indigo),
-                      title: const Text('2. Pickup: Sarah Connor'),
+                      title: Row(
+                        children: [
+                          const Text('2. Pickup: Sarah Connor'),
+                          const SizedBox(width: 8),
+                          Chip(
+                            avatar: const Icon(Icons.airline_seat_recline_extra, size: 14),
+                            label: const Text('Booster Seat', style: TextStyle(fontSize: 10)),
+                            visualDensity: VisualDensity.compact,
+                            padding: EdgeInsets.zero,
+                          ),
+                          const SizedBox(width: 4),
+                          Tooltip(
+                            message: 'Medical: Peanut Allergy',
+                            child: Chip(
+                              avatar: const Icon(Icons.medical_services, size: 14, color: Colors.red),
+                              label: const Text('Medical Note', style: TextStyle(fontSize: 10, color: Colors.red)),
+                              visualDensity: VisualDensity.compact,
+                              padding: EdgeInsets.zero,
+                              backgroundColor: Colors.red.shade50,
+                            ),
+                          ),
+                        ],
+                      ),
                       subtitle: Text(
                         'Scheduled: 4:40 PM • ETA: ${_delayReported ? '4:50 PM' : '4:40 PM'}',
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 16.0, bottom: 8.0),
+                      child: Wrap(
+                        spacing: 8,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: () async {
+                              final matrix = Provider.of<MatrixService>(context, listen: false);
+                              await matrix.sendCheckinEvent(
+                                widget.scheduleId,
+                                'child_sarah',
+                                'boarded',
+                                notes: 'Child boarded vehicle safely.',
+                              );
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Handoff check-in sent: Child Boarded')),
+                                );
+                              }
+                            },
+                            icon: const Icon(Icons.check_circle_outline, size: 16),
+                            label: const Text('Child Boarded'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () async {
+                              final matrix = Provider.of<MatrixService>(context, listen: false);
+                              await matrix.sendCheckinEvent(
+                                widget.scheduleId,
+                                'child_sarah',
+                                'delivered',
+                                notes: 'Child delivered to activity coordinator.',
+                              );
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Handoff check-in sent: Child Delivered')),
+                                );
+                              }
+                            },
+                            icon: const Icon(Icons.task_alt, size: 16),
+                            label: const Text('Child Delivered'),
+                          ),
+                        ],
                       ),
                     ),
                     ListTile(

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../services/database_service.dart';
 import '../services/matrix_service.dart';
+import '../services/ical_parser_service.dart';
 import '../models/models.dart';
 import '../widgets/empty_state_widget.dart';
 import 'active_route_screen.dart';
@@ -279,6 +280,44 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
               ),
             ),
             const SizedBox(height: 12),
+
+            Builder(
+              builder: (context) {
+                final conflicts = IcalParserService.detectScheduleConflicts(_events);
+                if (conflicts.isEmpty) return const SizedBox.shrink();
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade100,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.amber.shade700),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.warning, color: Colors.amber, size: 24),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Schedule Conflict Detected!',
+                              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
+                            ),
+                            Text(
+                              '${conflicts.length} overlapping commute event(s) found. Organize carpooling early to ensure all children get a ride.',
+                              style: const TextStyle(fontSize: 12, color: Colors.black87),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
 
             ..._events.map((event) {
               final startDt = DateTime.fromMillisecondsSinceEpoch(event.startTime);

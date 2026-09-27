@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math';
 import '../models/models.dart';
 
@@ -14,6 +15,37 @@ class LocationCoord {
 }
 
 class RouteOptimizerService {
+  /// Resolves the pickup location for a family member for a given event timestamp,
+  /// factoring in co-parenting custody schedules if configured.
+  static LocationCoord resolveRiderLocation({
+    required FamilyMember member,
+    required Family family,
+    required int eventTimestamp,
+  }) {
+    double lat = family.latitude;
+    double lon = family.longitude;
+
+    if (member.custodyScheduleJson.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(member.custodyScheduleJson) as Map<String, dynamic>;
+        final eventDate = DateTime.fromMillisecondsSinceEpoch(eventTimestamp);
+        final dayStr = eventDate.weekday.toString(); // 1 = Monday, 7 = Sunday
+        if (decoded.containsKey(dayStr)) {
+          final dayData = decoded[dayStr] as Map<String, dynamic>;
+          if (dayData.containsKey('latitude') && dayData.containsKey('longitude')) {
+            lat = (dayData['latitude'] as num).toDouble();
+            lon = (dayData['longitude'] as num).toDouble();
+          }
+        }
+      } catch (_) {}
+    }
+
+    return LocationCoord(
+      latitude: lat,
+      longitude: lon,
+      memberId: member.memberId,
+    );
+  }
   static double haversineDistance(double lat1, double lon1, double lat2, double lon2) {
     const r = 6371.0; // Earth's radius in kilometers
     final dLat = _degreesToRadians(lat2 - lat1);
