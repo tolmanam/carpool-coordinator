@@ -33,6 +33,12 @@ Real-world usage frequently requires users to act in multiple capacities simulta
 - **Scenario C-5: Activity Coordinator + Driver**
   - *Context*: A league organizer or coach who steps in as driver when regular parent drivers are unavailable.
   - *Behavior*: Can edit schedule/iCal feeds as coordinator and switch seamlessly to drive activation and route optimization mode as driver.
+- **Scenario C-6: Co-Parenting Multi-Household Scheduling**
+  - *Context*: Separated parents sharing custody of a child in sports or school activities.
+  - *Behavior*: Family Admin configures schedule-dependent pickup addresses (e.g. Household A on Mon/Wed, Household B on Tue/Thu), enabling TSP route generation to calculate waypoint coordinates dynamically based on the active custody schedule.
+- **Scenario C-7: Delegated Helper / Babysitter Driver**
+  - *Context*: A parent delegating ride driving or pickup duty to a grandparent or babysitter.
+  - *Behavior*: Assigns temporary driver access to a trusted adult profile without exposing full family administration settings or financial/private data.
 
 ---
 
@@ -46,6 +52,12 @@ Real-world usage frequently requires users to act in multiple capacities simulta
 - **US-105 (Ride Registration & Cancellation)**: As a Family Admin, I want to register or cancel a participant for an upcoming activity drive so that assigned drivers know who needs a ride.
 - **US-106 (Child Without Matrix Account Handling)** *(Gap Story)*: As a Family Admin, I want my children without independent Matrix user accounts to be fully representable and scheduleable under my family umbrella account without requiring child credentials.
 - **US-107 (Multi-Circle Participant Management)** *(Gap Story)*: As a Family Admin managing multiple children, I want to seamlessly map different family members to different organizations and circles without cross-circle participant clutter.
+- **US-108 (Co-Parenting & Alternate Pickup Locations)** *(New Story)*: As a Family Admin in a joint custody arrangement, I want to specify alternating home addresses/coordinates per weekday or schedule occurrence so drivers pick up my child from the correct home location.
+- **US-109 (Location Data Minimization & Privacy Controls)** *(New Story)*: As a Family Admin, I want my family's exact home address and coordinates shared only with the driver assigned to an active ride (and encrypted end-to-end), rather than exposed broadly to all room members.
+- **US-110 (Child Safety, Booster Seat & Medical Notes)** *(New Story)*: As a Family Admin, I want to attach booster seat requirements and emergency medical/allergy notes to my child's profile so assigned drivers are automatically informed before starting a ride.
+- **US-111 (Pickup & Drop-off Hand-off Verification)** *(New Story)*: As a Family Admin, I want real-time hand-off check-in confirmations (e.g. "Child Unloaded at Soccer Practice") so I know my child safely arrived at the destination.
+- **US-112 (Delegated Driver & Temporary Helper Permissions)** *(New Story)*: As a Family Admin, I want to delegate driver or pickup privileges to a trusted helper (e.g. babysitter or grandparent) for specific rides without giving them full family admin rights.
+- **US-113 (Schedule Conflict & Overlap Detection)** *(New Story)*: As a Family Admin, I want the application to highlight schedule overlaps across my children's assigned circles so I can proactively arrange rides for conflicting events.
 
 ### Persona: Driver
 - **US-201 (Drive Sign-up)**: As a Driver, I want to volunteer to drive a specific event occurrence on the schedule so that the group has an assigned driver.
@@ -94,6 +106,12 @@ The table below provides a complete audit of every User Story and Dual-Role Scen
 | **US-105** | Parent Admin | Register/cancel participant rides for schedule occurrences | **Implemented** (`lib/screens/schedule_screen.dart`, `lib/services/database_service.dart`) | **Passed** (`test/user_stories_test.dart`) | **Documented** | Supports ride signup creation and opt-out deletion in SQLite/Matrix state. |
 | **US-106** *(New)* | Parent Admin | Handle children without Matrix IDs under family umbrella | **Implemented** (`lib/models/models.dart`) | **Passed** (`test/user_stories_test.dart`) | **Documented** | `FamilyMember` allows empty `memberMatrixId`; child linked by `family_id`. |
 | **US-107** *(New)* | Parent Admin | Multi-circle participant filtering per child | **Implemented** (`lib/services/database_service.dart`) | **Passed** (`test/database_service_test.dart`) | **Documented** | `circle_id` filtering in `OrganizationParticipant` model separates circle rosters. |
+| **US-108** *(New)* | Parent Admin | Co-Parenting alternate pickup locations & schedules | **Documented** | Pending | **Documented** | Planned data model extension for per-day home address coordinates in TSP route generation. |
+| **US-109** *(New)* | Parent Admin | Location data minimization & driver-only E2EE sharing | **Documented** | Pending | **Documented** | Planned ephemeral Olm/Megolm key exchange restricting address exposure to assigned driver. |
+| **US-110** *(New)* | Parent Admin | Child booster seat & medical safety notes | **Documented** | Pending | **Documented** | Planned safety flags on `FamilyMember` displayed during active drives. |
+| **US-111** *(New)* | Parent Admin | Pickup & drop-off hand-off check-in verification | **Documented** | Pending | **Documented** | Planned Matrix room state event triggers for child arrival/departure confirmations. |
+| **US-112** *(New)* | Parent Admin | Delegated helper & temporary driver permissions | **Documented** | Pending | **Documented** | Planned scoped temporary driver token/role without granting family admin rights. |
+| **US-113** *(New)* | Parent Admin | Schedule overlap & conflict detection | **Documented** | Pending | **Documented** | Planned conflict visualizer in iCal engine for multi-child overlapping events. |
 | **US-201** | Driver | Volunteer to drive specific event occurrence | **Implemented** (`lib/screens/schedule_screen.dart`, `lib/services/database_service.dart`) | **Passed** (`test/user_stories_test.dart`) | **Documented** | Driver signups store role `'driver'` and broadcast custom Matrix event. |
 | **US-202** | Driver | TSP optimized pickup route calculation & ETAs | **Implemented** (`lib/services/route_optimizer_service.dart`, `lib/screens/active_route_screen.dart`) | **Passed** (`test/route_optimizer_service_test.dart`) | **Documented** | Greedy TSP solver with Haversine distance formula implemented and tested. |
 | **US-203** | Driver | Active drive mode & GPS position streaming | **Implemented** (`lib/screens/active_route_screen.dart`, `lib/services/matrix_service.dart`) | **Passed** (`test/matrix_service_test.dart`) | **Documented** | Real-time simulation & position payload messaging to Matrix rooms. |
@@ -125,6 +143,8 @@ The table below provides a complete audit of every User Story and Dual-Role Scen
 | **Scenario C-3** | Parent w/ Multi-Kids | Managing children in separate overlapping circles | **Implemented** | **Passed** (`test/database_service_test.dart`) | **Documented** | Roster filters show distinct children in gymnastics vs. soccer circles. |
 | **Scenario C-4** | Single-Adult Household | Single parent admin managing family unit | **Implemented** | **Passed** (`test/database_service_test.dart`) | **Documented** | Minimum family unit requirement set to 1 adult in schema and business logic. |
 | **Scenario C-5** | Coordinator + Driver | Activity coordinator taking over drive | **Implemented** | **Passed** (`test/user_stories_test.dart`) | **Documented** | Space admin can register as driver on any scheduled circle occurrence. |
+| **Scenario C-6** *(New)* | Co-Parenting Admin | Dual household custody schedule & location handling | **Documented** | Pending | **Documented** | Planned support for alternating day-of-week household pickup coordinates in TSP solver. |
+| **Scenario C-7** *(New)* | Parent + Helper | Delegated babysitter / grandparent driver permissions | **Documented** | Pending | **Documented** | Planned scoped temporary driver access without family admin configuration rights. |
 
 ---
 

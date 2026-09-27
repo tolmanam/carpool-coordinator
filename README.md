@@ -123,3 +123,10 @@ The generated APK will be located at `build/app/outputs/flutter-apk/app-release.
   - Integrate native `matrix-rust-sdk` Dart FFI bindings for full zero-trust Olm/Megolm E2EE encrypted sync with Matrix homeservers.
 - [ ] **Phase 5: Background Location Streaming & Push Notifications**
   - Implement native Android background location tasks (`flutter_background_service`) and Matrix Push Gateway notifications for delay alerts.
+- [ ] **Phase 6: Advanced Family Administration & Privacy Enhancements**
+  - **Co-Parenting Support**: Multi-household schedule-dependent pickup addresses and custody schedule route integration (US-108).
+  - **Location Privacy Controls**: Data minimization restricting exact child coordinate exposure exclusively to assigned drivers during active commutes (US-109).
+  - **Child Safety & Medical Attributes**: Booster/car seat indicators and emergency medical/allergy notes visible on driver route interface (US-110).
+  - **Hand-off Verification**: Real-time arrival/pickup check-in confirmations and status broadcasts (US-111).
+  - **Delegated Helpers**: Scoped temporary driver access for babysitters and grandparents without family admin permissions (US-112).
+  - **Schedule Conflict Detection**: Automatic conflict highlighting across overlapping multi-child circles (US-113).
