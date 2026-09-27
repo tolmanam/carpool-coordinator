@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../services/database_service.dart';
 import '../services/matrix_service.dart';
 import '../services/ical_parser_service.dart';
+import '../services/route_optimizer_service.dart';
 import '../models/models.dart';
 import '../widgets/empty_state_widget.dart';
 import 'active_route_screen.dart';
@@ -174,22 +175,26 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     } else {
       final matchedSignups = _signups.where((s) => s.eventTimestamp == event.startTime).toList();
       final driverSignup = matchedSignups.where((s) => s.role == 'driver').firstOrNull;
-      final currentRiders = matchedSignups.where((s) => s.role == 'rider').length;
 
-      if (driverSignup != null && currentRiders >= driverSignup.seatCapacity) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Vehicle seat capacity limit reached (${driverSignup.seatCapacity} seats full).'),
-              backgroundColor: Colors.redAccent,
-            ),
-          );
+      // Check driver booster capacity if booster seat is required
+      if (driverSignup != null && childMember.requiresBoosterSeat) {
+        final driverMember = _members.firstWhere((m) => m.memberId == driverSignup.memberId, orElse: () => FamilyMember(memberId: '', matrixId: '', name: '', role: 'parent'));
+        if (!driverMember.supportsBoosterSeats) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Vehicle does not support required booster seats.'),
+                backgroundColor: Colors.redAccent,
+              ),
+            );
+          }
+          return;
         }
-        return;
       }
 
       String equipmentTags = '';
       int boosterCount = childMember.requiresBoosterSeat ? 1 : 0;
+      bool reqPin = false;
 
       if (mounted) {
         final equipController = TextEditingController();
@@ -197,6 +202,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           context: context,
           builder: (ctx) {
             int boosterVal = boosterCount;
+            bool pinReq = false;
             return StatefulBuilder(
               builder: (context, setDialogState) {
                 return AlertDialog(
@@ -226,6 +232,16 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                           ),
                         ],
                       ),
+                      const SizedBox(height: 12),
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Request PIN Verification for Handoff'),
+                        subtitle: const Text('Requires driver to verify PIN at pickup/dropoff'),
+                        value: pinReq,
+                        onChanged: (v) {
+                          if (v != null) setDialogState(() => pinReq = v);
+                        },
+                      ),
                     ],
                   ),
                   actions: [
@@ -234,8 +250,9 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                       onPressed: () => Navigator.pop(ctx, {
                         'equipment': equipController.text.trim(),
                         'booster': boosterVal,
+                        'pin_required': pinReq,
                       }),
-                      child: const Text('Confirm Ride'),
+                      child: const Text('Confirm Ride Request'),
                     ),
                   ],
                 );
@@ -247,19 +264,90 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         if (dialogRes == null) return;
         equipmentTags = dialogRes['equipment'] as String? ?? '';
         boosterCount = dialogRes['booster'] as int? ?? boosterCount;
+        reqPin = dialogRes['pin_required'] as bool? ?? false;
       }
 
+      final status = driverSignup != null ? 'claimed' : 'requested';
       await matrix.sendSignup(
         _activeSchedule!.scheduleId,
         childMember.memberId,
         'rider',
-        'scheduled',
+        status,
         event.startTime,
         equipmentTags: equipmentTags,
         boosterCount: boosterCount,
+        claimedByDriverId: driverSignup?.memberId ?? '',
+        handoffPinRequired: reqPin,
+        handoffPin: reqPin ? '1234' : '',
       );
     }
 
+    await _loadData();
+  }
+
+  void _claimRideForPassenger(LocalIcalEvent event, Signup passengerSignup) async {
+    final matrix = Provider.of<MatrixService>(context, listen: false);
+    final parentMember = _members.firstWhere(
+      (m) => m.role == 'parent' || m.canDrive,
+      orElse: () => FamilyMember(
+        memberId: 'parent_${matrix.username}',
+        matrixId: matrix.username,
+        name: matrix.username,
+        role: 'parent',
+      ),
+    );
+
+    // US-208 Detour Threshold Preview Check
+    final family = await Provider.of<DatabaseService>(context, listen: false).getFamily(parentMember.matrixId) ??
+        Family(matrixId: parentMember.matrixId, familyName: 'Local Family', latitude: 34.0522, longitude: -118.2437, addressText: 'Home', lastUpdated: 0);
+
+    final driverHome = LocationCoord(latitude: family.latitude, longitude: family.longitude, memberId: parentMember.memberId);
+    final dest = LocationCoord(latitude: _activeSchedule?.latitude ?? 34.0415, longitude: _activeSchedule?.longitude ?? -118.4520, memberId: 'dest');
+    final candidate = LocationCoord(latitude: family.latitude + 0.01, longitude: family.longitude + 0.01, memberId: passengerSignup.memberId);
+
+    final impact = RouteOptimizerService.calculateDetourImpact(
+      driverHome: driverHome,
+      destination: dest,
+      existingRiders: [],
+      candidateRider: candidate,
+    );
+
+    final timeDelta = impact['time_delta_minutes'] as int;
+    final maxDetour = parentMember.maxDetourMinutes;
+
+    if (mounted) {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Route Impact Preview (US-208)'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Estimated Detour Time: +$timeDelta mins'),
+              Text('Driver Max Detour Limit: $maxDetour mins'),
+              if (timeDelta > maxDetour) ...[
+                const SizedBox(height: 8),
+                const Text('Warning: This pickup exceeds your set detour threshold!', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Claim Ride')),
+          ],
+        ),
+      );
+
+      if (confirm != true) return;
+    }
+
+    await matrix.claimPassengerRide(
+      _activeSchedule!.scheduleId,
+      event.startTime,
+      passengerSignup.memberId,
+      parentMember.memberId,
+    );
     await _loadData();
   }
 
@@ -588,10 +676,10 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                                   Chip(
                                     visualDensity: VisualDensity.compact,
                                     label: Text(
-                                      '${riderSignups.length}/${driverSignup.seatCapacity} Seats',
+                                      '${riderSignups.where((r) => r.status == 'claimed' || r.claimedByDriverId.isNotEmpty).length}/${driverSignup.seatCapacity} Seats Claimed',
                                       style: const TextStyle(fontSize: 11),
                                     ),
-                                    backgroundColor: riderSignups.length >= driverSignup.seatCapacity
+                                    backgroundColor: riderSignups.where((r) => r.status == 'claimed' || r.claimedByDriverId.isNotEmpty).length >= driverSignup.seatCapacity
                                         ? Colors.orange.shade100
                                         : Colors.green.shade100,
                                   ),
@@ -607,6 +695,31 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                                 Expanded(child: Text(riderNames.isNotEmpty ? riderNames : 'No riders registered')),
                               ],
                             ),
+                            if (driverSignup != null && isDriving) ...[
+                              ...riderSignups.where((r) => r.status == 'requested' || r.claimedByDriverId.isEmpty).map((unclaimedRider) {
+                                return Container(
+                                  margin: const EdgeInsets.only(top: 8),
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.amber.shade50,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: Colors.amber.shade300),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.person_add_alt_1, size: 16, color: Colors.amber),
+                                      const SizedBox(width: 8),
+                                      Expanded(child: Text('Requested Ride (${unclaimedRider.memberId})', style: const TextStyle(fontSize: 12))),
+                                      ElevatedButton(
+                                        style: ElevatedButton.styleFrom(visualDensity: VisualDensity.compact),
+                                        onPressed: () => _claimRideForPassenger(event, unclaimedRider),
+                                        child: const Text('Claim Ride', style: TextStyle(fontSize: 11)),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }),
+                            ],
                             if (riderSignups.any((r) => r.equipmentTags.isNotEmpty || r.boosterCount > 0)) ...[
                               const SizedBox(height: 6),
                               Row(

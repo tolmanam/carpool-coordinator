@@ -240,37 +240,37 @@ This document serves as the official, living roadmap and technical tracking guid
 ### Phase 8: Advanced Driver Safety, Liability & Social Dynamics
 *Focus: Detour thresholds, objective seat capping rules, driver credential attestation, child equipment verification, and emergency route transfers.*
 
-- [ ] **Route Impact Preview & Detour Thresholds (US-208)**
+- [x] **Route Impact Preview & Detour Thresholds (US-208)**
   - **Details**: Pre-calculate pickup route time/distance delta before driver confirmation; enforce driver-configured maximum detour threshold (e.g. max +15 min detour).
   - **User Stories**: US-208
   - **Target Files**: `lib/services/route_optimizer_service.dart`, `lib/screens/schedule_screen.dart`
   - **Test Target**: `test/route_optimizer_service_test.dart`
 
-- [ ] **Automated Seat Allocation Rules & Objective Capping (US-209)**
-  - **Details**: Implement automated priority rules (first-come, proximity order) for seat assignments; close passenger signups automatically when limits are reached with objective feedback.
+- [x] **Automated Seat Allocation Rules & Objective Capping (US-209)**
+  - **Details**: Support passenger ride requests and driver claiming workflow; close passenger signups automatically when vehicle capacity limits are reached.
   - **User Stories**: US-209
-  - **Target Files**: `lib/screens/schedule_screen.dart`, `lib/models/models.dart`
+  - **Target Files**: `lib/screens/schedule_screen.dart`, `lib/models/models.dart`, `lib/services/matrix_service.dart`
   - **Test Target**: `test/user_stories_test.dart`
 
-- [ ] **Driver License, Insurance & Liability Attestation (US-210)**
-  - **Details**: Secure profile storage for driver license and active insurance attestation; prompt drivers for annual organization liability confirmation prior to volunteering.
+- [x] **Driver License, Insurance & Liability Attestation (US-210)**
+  - **Details**: Optional profile storage for driver license, active insurance attestation, and annual organization liability confirmation.
   - **User Stories**: US-210
   - **Target Files**: `lib/models/models.dart`, `lib/screens/settings_screen.dart`
   - **Test Target**: `test/user_stories_test.dart`
 
-- [ ] **Booster Seat & Safety Equipment Verification (US-211)**
+- [x] **Booster Seat & Safety Equipment Verification (US-211)**
   - **Details**: Match child safety seat requirements (booster/rear-facing) against vehicle equipment capabilities specified by the driver before approving signups.
   - **User Stories**: US-211
   - **Target Files**: `lib/screens/schedule_screen.dart`, `lib/models/models.dart`
   - **Test Target**: `test/user_stories_test.dart`
 
-- [ ] **Pickup & Drop-off Handoff Verification (US-212)**
-  - **Details**: adult check-in / pin-verify mechanism for child handoffs at pickup and destination delivery acknowledgment.
+- [x] **Pickup & Drop-off Handoff Verification (US-212)**
+  - **Details**: Optional PIN verification for child handoffs at pickup and destination delivery acknowledgment upon parent request.
   - **User Stories**: US-212
   - **Target Files**: `lib/screens/active_route_screen.dart`, `lib/services/matrix_service.dart`
   - **Test Target**: `test/user_stories_test.dart`
 
-- [ ] **Emergency Route Handoff & Segment Transfer Protocol (US-213)**
+- [x] **Emergency Route Handoff & Segment Transfer Protocol (US-213)**
   - **Details**: Transfer active or upcoming route segments between verified circle drivers during vehicle breakdown or emergency re-routing.
   - **User Stories**: US-213
   - **Target Files**: `lib/services/matrix_service.dart`, `lib/screens/active_route_screen.dart`

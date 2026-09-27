@@ -466,5 +466,62 @@ void main() {
       matrixService.toggleOfflineMode(true);
       await matrixService.updateRoomPowerLevels('room_lead_123', '@co_coordinator:matrix.org', 50);
     });
+
+    test('US-209 & US-212 & US-213: Ride Claiming, Optional Handoff PIN & Emergency Segment Transfer Protocol', () async {
+      final scheduleId = 'sched_phase8';
+      final eventTimestamp = 1700000000000;
+
+      // US-209: Ride request created by parent
+      await matrixService.sendSignup(
+        scheduleId,
+        'child_1',
+        'rider',
+        'requested',
+        eventTimestamp,
+        handoffPinRequired: true,
+        handoffPin: '1234',
+      );
+
+      var signups = await dbService.getSignups(scheduleId);
+      expect(signups.first.status, equals('requested'));
+      expect(signups.first.handoffPinRequired, isTrue);
+
+      // Driver claims the requested ride
+      await matrixService.claimPassengerRide(scheduleId, eventTimestamp, 'child_1', 'driver_alice');
+      signups = await dbService.getSignups(scheduleId);
+      expect(signups.first.status, equals('claimed'));
+      expect(signups.first.claimedByDriverId, equals('driver_alice'));
+
+      // US-213: Emergency Route Segment Transfer from driver_alice to driver_bob
+      await matrixService.transferRouteSegment(scheduleId, eventTimestamp, 'driver_alice', 'driver_bob');
+      signups = await dbService.getSignups(scheduleId);
+      expect(signups.first.claimedByDriverId, equals('driver_bob'));
+      expect(signups.first.transferredFromDriverId, equals('driver_alice'));
+    });
+
+    test('US-210 & US-211: Optional Driver Credentials & Booster Seat Compatibility', () async {
+      final driverWithCredentials = FamilyMember(
+        memberId: 'driver_cred_1',
+        matrixId: '@parent:matrix.org',
+        name: 'Bob',
+        role: 'parent',
+        canDrive: true,
+        licenseNumber: 'DL1234567',
+        insuranceAttestation: true,
+        liabilityConfirmed: true,
+        maxDetourMinutes: 20,
+        supportsBoosterSeats: true,
+      );
+
+      await dbService.insertFamilyMember(driverWithCredentials);
+      final members = await dbService.getFamilyMembers('@parent:matrix.org');
+      final savedDriver = members.firstWhere((m) => m.memberId == 'driver_cred_1');
+
+      expect(savedDriver.licenseNumber, equals('DL1234567'));
+      expect(savedDriver.insuranceAttestation, isTrue);
+      expect(savedDriver.liabilityConfirmed, isTrue);
+      expect(savedDriver.maxDetourMinutes, equals(20));
+      expect(savedDriver.supportsBoosterSeats, isTrue);
+    });
   });
 }

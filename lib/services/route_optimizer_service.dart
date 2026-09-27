@@ -121,4 +121,74 @@ class RouteOptimizerService {
 
     return route;
   }
+
+  /// Calculates total travel distance in km for a sequence of stops starting at driver home,
+  /// visiting riders, and ending at destination.
+  static double calculateTotalDistance(
+    LocationCoord driverHome,
+    LocationCoord destination,
+    List<LocationCoord> riders,
+  ) {
+    if (riders.isEmpty) {
+      return haversineDistance(
+        driverHome.latitude,
+        driverHome.longitude,
+        destination.latitude,
+        destination.longitude,
+      );
+    }
+    final waypoints = solveOptimalRoute(driverHome, destination, riders, DateTime.now().millisecondsSinceEpoch);
+    double totalDist = 0.0;
+    for (int i = 0; i < waypoints.length - 1; i++) {
+      totalDist += haversineDistance(
+        waypoints[i].latitude,
+        waypoints[i].longitude,
+        waypoints[i + 1].latitude,
+        waypoints[i + 1].longitude,
+      );
+    }
+    return totalDist;
+  }
+
+  /// Evaluates the detour impact (distance delta and estimated time delta in minutes)
+  /// of adding a new candidate rider to an existing route.
+  static Map<String, dynamic> calculateDetourImpact({
+    required LocationCoord driverHome,
+    required LocationCoord destination,
+    required List<LocationCoord> existingRiders,
+    required LocationCoord candidateRider,
+  }) {
+    final directDist = calculateTotalDistance(driverHome, destination, existingRiders);
+    final withCandidateRiders = List<LocationCoord>.from(existingRiders)..add(candidateRider);
+    final detourDist = calculateTotalDistance(driverHome, destination, withCandidateRiders);
+
+    final distanceDeltaKm = max(0.0, detourDist - directDist);
+    // Assuming avg speed 30 km/h -> 1 km takes 2 mins
+    final timeDeltaMinutes = (distanceDeltaKm * 2.0).round();
+
+    return {
+      'direct_distance_km': directDist,
+      'detour_distance_km': detourDist,
+      'distance_delta_km': distanceDeltaKm,
+      'time_delta_minutes': timeDeltaMinutes,
+    };
+  }
+
+  /// Checks whether adding a candidate rider exceeds the driver's max detour threshold in minutes.
+  static bool isWithinDetourThreshold({
+    required LocationCoord driverHome,
+    required LocationCoord destination,
+    required List<LocationCoord> existingRiders,
+    required LocationCoord candidateRider,
+    required int maxDetourMinutes,
+  }) {
+    final impact = calculateDetourImpact(
+      driverHome: driverHome,
+      destination: destination,
+      existingRiders: existingRiders,
+      candidateRider: candidateRider,
+    );
+    final timeDelta = impact['time_delta_minutes'] as int;
+    return timeDelta <= maxDetourMinutes;
+  }
 }

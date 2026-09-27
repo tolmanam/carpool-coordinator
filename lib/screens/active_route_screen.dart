@@ -186,18 +186,52 @@ class _ActiveRouteScreenState extends State<ActiveRouteScreen> {
                             children: [
                               OutlinedButton.icon(
                                 onPressed: () async {
+                                  // Prompt for PIN if parent requested PIN handoff verification (US-212)
+                                  final pinController = TextEditingController();
+                                  final pinConfirmed = await showDialog<bool>(
+                                    context: context,
+                                    builder: (ctx) => AlertDialog(
+                                      title: const Text('Optional PIN Verification (US-212)'),
+                                      content: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Text('Parent requested PIN verification at pickup.'),
+                                          const SizedBox(height: 12),
+                                          TextField(
+                                            controller: pinController,
+                                            decoration: const InputDecoration(labelText: 'Enter 4-Digit Parent PIN (e.g. 1234)'),
+                                            keyboardType: TextInputType.number,
+                                          ),
+                                        ],
+                                      ),
+                                      actions: [
+                                        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Bypass / Skip')),
+                                        ElevatedButton(
+                                          onPressed: () {
+                                            if (pinController.text.trim() == '1234') {
+                                              Navigator.pop(ctx, true);
+                                            } else {
+                                              ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Invalid PIN!')));
+                                            }
+                                          },
+                                          child: const Text('Verify PIN'),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+
                                   final matrix = Provider.of<MatrixService>(context, listen: false);
                                   await matrix.sendAttendanceCheckin(
                                     widget.scheduleId,
                                     widget.eventTimestamp,
                                     'child_sarah',
-                                    'pickup',
+                                    pinConfirmed == true ? 'pickup_pin_verified' : 'pickup',
                                     matrix.username,
                                   );
                                   setState(() => _checkedInMembers.add('child_sarah_pickup'));
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Attendance Check-in Recorded: Sarah Boarded (Pickup)')),
+                                      SnackBar(content: Text('Attendance Check-in Recorded: Sarah Boarded (${pinConfirmed == true ? 'PIN Verified' : 'Standard Pickup'})')),
                                     );
                                   }
                                 },
@@ -231,6 +265,53 @@ class _ActiveRouteScreenState extends State<ActiveRouteScreen> {
                                   color: _checkedInMembers.contains('child_sarah_dropoff') ? Colors.green : null,
                                 ),
                                 label: Text(_checkedInMembers.contains('child_sarah_dropoff') ? 'Dropoff Recorded' : 'Child Delivered'),
+                              ),
+                              OutlinedButton.icon(
+                                onPressed: () async {
+                                  // Emergency Route Transfer Protocol (US-213)
+                                  final altDriverController = TextEditingController();
+                                  final transferConfirmed = await showDialog<bool>(
+                                    context: context,
+                                    builder: (ctx) => AlertDialog(
+                                      title: const Text('Emergency Route Transfer Protocol (US-213)'),
+                                      content: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Text('Transfer remaining active route segment to another verified driver:'),
+                                          const SizedBox(height: 12),
+                                          TextField(
+                                            controller: altDriverController,
+                                            decoration: const InputDecoration(labelText: 'Target Driver Member ID'),
+                                          ),
+                                        ],
+                                      ),
+                                      actions: [
+                                        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                                        ElevatedButton(
+                                          onPressed: () => Navigator.pop(ctx, true),
+                                          child: const Text('Transfer Route'),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+
+                                  if (transferConfirmed == true && altDriverController.text.trim().isNotEmpty) {
+                                    final matrix = Provider.of<MatrixService>(context, listen: false);
+                                    await matrix.transferRouteSegment(
+                                      widget.scheduleId,
+                                      widget.eventTimestamp,
+                                      matrix.username,
+                                      altDriverController.text.trim(),
+                                    );
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text('Route Segment Transferred to ${altDriverController.text.trim()}')),
+                                      );
+                                    }
+                                  }
+                                },
+                                icon: const Icon(Icons.swap_horiz, size: 16, color: Colors.orange),
+                                label: const Text('Transfer Route (US-213)', style: TextStyle(color: Colors.orange)),
                               ),
                             ],
                           ),

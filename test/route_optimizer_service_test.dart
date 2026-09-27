@@ -23,5 +23,42 @@ void main() {
       expect(route.first.type, equals('driver_start'));
       expect(route.last.type, equals('destination'));
     });
+
+    test('US-208: Route Impact Preview & Detour Threshold Calculation', () {
+      final driverHome = LocationCoord(latitude: 34.0194, longitude: -118.4912, memberId: 'driver_1');
+      final destination = LocationCoord(latitude: 34.0415, longitude: -118.4520, memberId: 'dest');
+      final existingRiders = [
+        LocationCoord(latitude: 34.0250, longitude: -118.4700, memberId: 'rider_1'),
+      ];
+      final candidateNear = LocationCoord(latitude: 34.0260, longitude: -118.4680, memberId: 'rider_2');
+      final candidateFar = LocationCoord(latitude: 34.2000, longitude: -118.1000, memberId: 'rider_far');
+
+      final impactNear = RouteOptimizerService.calculateDetourImpact(
+        driverHome: driverHome,
+        destination: destination,
+        existingRiders: existingRiders,
+        candidateRider: candidateNear,
+      );
+
+      final isWithinNear = RouteOptimizerService.isWithinDetourThreshold(
+        driverHome: driverHome,
+        destination: destination,
+        existingRiders: existingRiders,
+        candidateRider: candidateNear,
+        maxDetourMinutes: 15,
+      );
+
+      final isWithinFar = RouteOptimizerService.isWithinDetourThreshold(
+        driverHome: driverHome,
+        destination: destination,
+        existingRiders: existingRiders,
+        candidateRider: candidateFar,
+        maxDetourMinutes: 15,
+      );
+
+      expect(impactNear['time_delta_minutes'], isNotNull);
+      expect(isWithinNear, isTrue);
+      expect(isWithinFar, isFalse);
+    });
   });
 }
