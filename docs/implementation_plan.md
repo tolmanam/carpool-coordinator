@@ -106,6 +106,17 @@ The coding agent should implement the features in the following precise sequence
   2. Implement secure OIDC/SSO authentication flow.
   3. Activate E2EE: establish standard Olm/Megolm end-to-end room encryption for all `org.carpool.*` communication, ensuring all children coordinates, profile names, and schedules remain encrypted and hidden from homeserver admins.
 
+### Phase 6: Organization Coordinator Tools & Advanced Member Empowerment
+* **Goal**: Implement low-burden organization management, dynamic privacy enforcement, equipment/seat logistics, emergency access controls, and zero-backend leadership delegation.
+* **Tasks**:
+  1. **Self-Service Onboarding & Offboarding (US-306)**: Generate shareable `matrix.to` space join links and QR codes. Enable member self-service profile updates and automated data purging upon departure.
+  2. **Selective Location & Privacy Controls (US-307)**: Encrypt family address coordinates; reveal full route coordinates strictly to assigned drivers during active commute windows.
+  3. **Equipment & Seat Logistics (US-308)**: Add equipment (gear bags, instruments) and seating requirement (booster seats) fields to signups and enforce vehicle capacity rules.
+  4. **Multi-Calendar & Custom Matrix Announcements (US-309, US-311)**: Support multiple iCal URLs per Organization and dispatch high-priority direct Matrix schedule announcements (`org.carpool.schedule_announcement`, `org.carpool.urgent_alert`).
+  5. **Dynamic Emergency Contact & Medical Info Access (US-310)**: Expose emergency contacts and critical medical notes exclusively to assigned active drivers during active route execution.
+  6. **Attendance & Commute Headcount Verification (US-312)**: Add driver/coordinator check-in controls to record participant pickup and drop-off timestamps (`org.carpool.checkin`).
+  7. **Leadership Handoff & Delegated Moderation (US-313)**: Manage Matrix room power levels (`m.room.power_levels`) to support co-coordinators and transfer organization space ownership without central servers.
+
 ---
 
 ## 5. Deployment & Mobile Installation Plan
