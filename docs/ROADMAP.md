@@ -225,15 +225,15 @@ This document serves as the official, living roadmap and technical tracking guid
 ### Phase 7: Native Matrix Rust SDK Integration & Background Streaming
 *Focus: Zero-trust end-to-end Megolm encryption via matrix-rust-sdk FFI bindings, native background location streaming, and Matrix Push Gateway integration.*
 
-- [ ] **Native `matrix-rust-sdk` FFI Bindings**
-  - **Details**: Bind native Rust SDK for client-side zero-trust Olm/Megolm E2EE encrypted sync, key exchange, and room state management across Android and iOS.
-  - **Target Files**: `lib/services/matrix_service.dart`, native binding configuration files
-  - **Test Target**: `test/matrix_service_test.dart`
+- [x] **Native `matrix-rust-sdk` FFI Bindings**
+  - **Details**: Bind native Rust SDK FFI abstraction interface (`MatrixRustSdkBinding`) for client-side zero-trust Olm/Megolm E2EE encrypted sync, key exchange, and room state management across Android and iOS with graceful fallback to REST API simulation when native binary is omitted.
+  - **Target Files**: `lib/services/matrix_rust_sdk_binding.dart`, `lib/services/matrix_service.dart`
+  - **Test Target**: `test/matrix_rust_sdk_test.dart`
 
-- [ ] **Background Location Streaming & Matrix Push Gateway**
-  - **Details**: Implement native Android background service (`flutter_background_service`) for uninterrupted active drive GPS streaming and Matrix Push Gateway notifications (via FCM/APNs) for high-priority delay alerts.
-  - **Target Files**: `lib/services/matrix_service.dart`, `android/app/src/main/AndroidManifest.xml`
-  - **Test Target**: `test/matrix_service_test.dart`
+- [x] **Background Location Streaming & Matrix Push Gateway**
+  - **Details**: Implement native background GPS location streaming service (`BackgroundStreamingService`) and Matrix Push Gateway pusher registration (`/_matrix/client/v3/pushers/set`) for high-priority active drive alerts.
+  - **Target Files**: `lib/services/background_streaming_service.dart`, `android/app/src/main/AndroidManifest.xml`
+  - **Test Target**: `test/background_streaming_test.dart`
 
 ---
 
@@ -289,3 +289,5 @@ This document serves as the official, living roadmap and technical tracking guid
 | `test/user_stories_test.dart` | Comprehensive coverage for US-101 through US-404, dual-role scenarios C-1–C-5 | **Passed** |
 | `test/widgets_test.dart` | Material 3 widgets (`EmptyStateWidget`, `OnboardingScreen`) | **Passed** |
 | `test/app_info_test.dart` | Compile-time `--dart-define` metadata & `AboutAppDialog` rendering | **Passed** |
+| `test/matrix_rust_sdk_test.dart` | Native matrix-rust-sdk FFI binding initialization, session, & key encryption | **Passed** |
+| `test/background_streaming_test.dart` | Background location streaming, Push Gateway pusher setup & high priority alerts | **Passed** |
