@@ -46,7 +46,14 @@ jobs:
         run: dart run sqflite_common_ffi_web:setup
 
       - name: Build Flutter Web
-        run: flutter build web --release --base-href "/${{ github.event.repository.name }}/"
+        run: |
+          BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          GIT_TAG="${{ github.ref_type == 'tag' && github.ref_name || github.ref_name }}"
+          flutter build web --release \
+            --base-href "/${{ github.event.repository.name }}/" \
+            --dart-define=GIT_COMMIT="${{ github.sha }}" \
+            --dart-define=GIT_TAG="${GIT_TAG}" \
+            --dart-define=BUILD_DATE="${BUILD_DATE}"
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

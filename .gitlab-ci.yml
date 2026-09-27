@@ -19,7 +19,8 @@ unit_tests:
 build_apk:
   stage: build
   script:
-    - flutter build apk --release
+    - BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+    - flutter build apk --release --dart-define=GIT_COMMIT="$CI_COMMIT_SHA" --dart-define=GIT_TAG="${CI_COMMIT_TAG:-$CI_COMMIT_REF_NAME}" --dart-define=BUILD_DATE="$BUILD_DATE"
   artifacts:
     name: "app-release-$CI_COMMIT_REF_SLUG"
     paths:
