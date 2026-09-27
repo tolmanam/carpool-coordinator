@@ -127,6 +127,17 @@ The coding agent should implement the features in the following precise sequence
   5. **Delegated Helper Roles**: Create scoped temporary driver invitations for trusted non-family adults (e.g. babysitters) without granting family admin management access (US-112).
   6. **Schedule Conflict Detection**: Build multi-child schedule conflict analysis in the iCal engine to alert parents of overlapping commitments (US-113).
 
+### Phase 8: Advanced Driver Safety, Liability & Social Dynamics
+* **Goal**: Expand driver capability, social boundary enforcement, liability attestation, and child safety handoffs.
+* **Tasks**:
+  1. **Route Impact Preview & Detour Limits (US-208)**: Add TSP delta pre-calculation and configurable driver detour thresholds (e.g. +15 mins max detour limit).
+  2. **Automated Seat Allocation & Objective Capping (US-209)**: Build rule engine for first-come/proximity seat allocation and automatic signup closure.
+  3. **Driver Credential & Liability Attestation (US-210)**: Create encrypted storage for driver license/insurance confirmation and annual organization liability terms.
+  4. **Booster Seat & Safety Equipment Verification (US-211)**: Match child safety equipment needs (booster seat/rear-facing) against vehicle equipment capabilities.
+  5. **Pickup & Drop-off Handoff Verification (US-212)**: Implement adult check-in / pin-verify handoffs at pickup points and destination delivery confirmations.
+  6. **Emergency Route Handoff & Segment Transfer (US-213)**: Build driver-to-driver route segment transfer protocol for emergency situations.
+
+
 ---
 
 ## 5. Deployment & Mobile Installation Plan

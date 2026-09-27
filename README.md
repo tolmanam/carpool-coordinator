@@ -130,3 +130,11 @@ The generated APK will be located at `build/app/outputs/flutter-apk/app-release.
   - **Hand-off Verification**: Real-time arrival/pickup check-in confirmations and status broadcasts (US-111).
   - **Delegated Helpers**: Scoped temporary driver access for babysitters and grandparents without family admin permissions (US-112).
   - **Schedule Conflict Detection**: Automatic conflict highlighting across overlapping multi-child circles (US-113).
+- [ ] **Phase 7: Advanced Driver Safety, Liability & Social Dynamics**
+  - Pre-drive route impact preview and max detour threshold calculation (US-208).
+  - Priority seat allocation rules and objective capacity capping (US-209).
+  - Driver credential storage (license & insurance attestation) and organization liability agreement (US-210).
+  - Child safety seat / equipment verification matching (US-211).
+  - Secure pickup and drop-off child handoff verification (US-212).
+  - Emergency route handoff and passenger segment transfer protocol (US-213).
+
