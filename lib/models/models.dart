@@ -50,6 +50,12 @@ class FamilyMember {
   final String medicalNotes;
   final String custodyScheduleJson; // JSON string mapping dayOfWeek (1=Mon..7=Sun) to {latitude, longitude, address}
   final bool isDelegatedHelper;
+  final String licenseNumber;
+  final bool insuranceAttestation;
+  final bool liabilityConfirmed;
+  final int maxDetourMinutes;
+  final bool supportsBoosterSeats;
+  final int boosterCapacity;
 
   FamilyMember({
     required this.memberId,
@@ -67,6 +73,12 @@ class FamilyMember {
     this.medicalNotes = '',
     this.custodyScheduleJson = '',
     this.isDelegatedHelper = false,
+    this.licenseNumber = '',
+    this.insuranceAttestation = false,
+    this.liabilityConfirmed = false,
+    this.maxDetourMinutes = 15,
+    this.supportsBoosterSeats = true,
+    this.boosterCapacity = 2,
   });
 
   Map<String, dynamic> toMap() => {
@@ -85,6 +97,12 @@ class FamilyMember {
         'medical_notes': medicalNotes,
         'custody_schedule_json': custodyScheduleJson,
         'is_delegated_helper': isDelegatedHelper ? 1 : 0,
+        'license_number': licenseNumber,
+        'insurance_attestation': insuranceAttestation ? 1 : 0,
+        'liability_confirmed': liabilityConfirmed ? 1 : 0,
+        'max_detour_minutes': maxDetourMinutes,
+        'supports_booster_seats': supportsBoosterSeats ? 1 : 0,
+        'booster_capacity': boosterCapacity,
       };
 
   factory FamilyMember.fromMap(Map<String, dynamic> map) => FamilyMember(
@@ -103,6 +121,12 @@ class FamilyMember {
         medicalNotes: map['medical_notes'] as String? ?? '',
         custodyScheduleJson: map['custody_schedule_json'] as String? ?? '',
         isDelegatedHelper: map['is_delegated_helper'] == 1 || map['is_delegated_helper'] == true || map['role'] == 'helper',
+        licenseNumber: map['license_number'] as String? ?? '',
+        insuranceAttestation: map['insurance_attestation'] == 1 || map['insurance_attestation'] == true,
+        liabilityConfirmed: map['liability_confirmed'] == 1 || map['liability_confirmed'] == true,
+        maxDetourMinutes: map['max_detour_minutes'] as int? ?? 15,
+        supportsBoosterSeats: map['supports_booster_seats'] == null ? true : (map['supports_booster_seats'] == 1 || map['supports_booster_seats'] == true),
+        boosterCapacity: map['booster_capacity'] as int? ?? 2,
       );
 }
 
@@ -320,10 +344,14 @@ class Signup {
   final int eventTimestamp;
   final String memberId;
   final String role;   // 'rider' | 'driver'
-  final String status; // 'scheduled' | 'canceled'
+  final String status; // 'scheduled' | 'canceled' | 'requested' | 'claimed'
   final int seatCapacity;
   final String equipmentTags;
   final int boosterCount;
+  final String claimedByDriverId;
+  final bool handoffPinRequired;
+  final String handoffPin;
+  final String transferredFromDriverId;
 
   Signup({
     required this.id,
@@ -335,6 +363,10 @@ class Signup {
     this.seatCapacity = 4,
     this.equipmentTags = '',
     this.boosterCount = 0,
+    this.claimedByDriverId = '',
+    this.handoffPinRequired = false,
+    this.handoffPin = '',
+    this.transferredFromDriverId = '',
   });
 
   Map<String, dynamic> toMap() => {
@@ -347,6 +379,10 @@ class Signup {
         'seat_capacity': seatCapacity,
         'equipment_tags': equipmentTags,
         'booster_count': boosterCount,
+        'claimed_by_driver_id': claimedByDriverId,
+        'handoff_pin_required': handoffPinRequired ? 1 : 0,
+        'handoff_pin': handoffPin,
+        'transferred_from_driver_id': transferredFromDriverId,
       };
 
   factory Signup.fromMap(Map<String, dynamic> map) => Signup(
@@ -359,6 +395,10 @@ class Signup {
         seatCapacity: map['seat_capacity'] as int? ?? 4,
         equipmentTags: map['equipment_tags'] as String? ?? '',
         boosterCount: map['booster_count'] as int? ?? 0,
+        claimedByDriverId: map['claimed_by_driver_id'] as String? ?? '',
+        handoffPinRequired: map['handoff_pin_required'] == 1 || map['handoff_pin_required'] == true,
+        handoffPin: map['handoff_pin'] as String? ?? '',
+        transferredFromDriverId: map['transferred_from_driver_id'] as String? ?? '',
       );
 }
 

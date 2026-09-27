@@ -64,6 +64,12 @@ class DatabaseService extends ChangeNotifier {
             medical_notes TEXT,
             custody_schedule_json TEXT,
             is_delegated_helper INTEGER DEFAULT 0,
+            license_number TEXT,
+            insurance_attestation INTEGER DEFAULT 0,
+            liability_confirmed INTEGER DEFAULT 0,
+            max_detour_minutes INTEGER DEFAULT 15,
+            supports_booster_seats INTEGER DEFAULT 1,
+            booster_capacity INTEGER DEFAULT 2,
             FOREIGN KEY (matrix_id) REFERENCES cached_families (matrix_id) ON DELETE CASCADE
           )
         ''');
@@ -144,7 +150,11 @@ class DatabaseService extends ChangeNotifier {
             status TEXT NOT NULL,
             seat_capacity INTEGER DEFAULT 4,
             equipment_tags TEXT,
-            booster_count INTEGER DEFAULT 0
+            booster_count INTEGER DEFAULT 0,
+            claimed_by_driver_id TEXT,
+            handoff_pin_required INTEGER DEFAULT 0,
+            handoff_pin TEXT,
+            transferred_from_driver_id TEXT
           )
         ''');
 

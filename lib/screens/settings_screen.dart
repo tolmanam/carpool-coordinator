@@ -28,8 +28,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _memberPhoneController = TextEditingController();
   final _memberEmergencyController = TextEditingController();
   final _memberMatrixIdController = TextEditingController();
+  final _memberLicenseController = TextEditingController();
+  final _memberMaxDetourController = TextEditingController(text: '15');
   bool _memberIsAdult = true;
   bool _memberCanDrive = false;
+  bool _memberInsuranceAttestation = false;
+  bool _memberLiabilityConfirmed = false;
+  bool _memberSupportsBooster = true;
 
   @override
   void initState() {
@@ -101,6 +106,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       email: _memberEmailController.text.trim(),
       phone: _memberPhoneController.text.trim(),
       emergencyContact: _memberEmergencyController.text.trim(),
+      licenseNumber: _memberLicenseController.text.trim(),
+      insuranceAttestation: _memberInsuranceAttestation,
+      liabilityConfirmed: _memberLiabilityConfirmed,
+      maxDetourMinutes: int.tryParse(_memberMaxDetourController.text.trim()) ?? 15,
+      supportsBoosterSeats: _memberSupportsBooster,
     );
 
     await db.insertFamilyMember(member);
@@ -456,6 +466,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       prefixIcon: Icon(Icons.security),
                     ),
                   ),
+                  if (_memberCanDrive) ...[
+                    const SizedBox(height: 12),
+                    const Text('Driver Credentials & Preferences (Optional, US-210 & US-208)', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _memberLicenseController,
+                      decoration: const InputDecoration(
+                        labelText: 'Driver License Number (Optional)',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.card_membership),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _memberMaxDetourController,
+                      decoration: const InputDecoration(
+                        labelText: 'Max Detour Threshold (Minutes)',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.timer),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                    const SizedBox(height: 8),
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Active Vehicle Insurance Attestation (Optional)'),
+                      value: _memberInsuranceAttestation,
+                      onChanged: (val) => setState(() => _memberInsuranceAttestation = val ?? false),
+                    ),
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Annual Liability Terms Confirmed (Optional)'),
+                      value: _memberLiabilityConfirmed,
+                      onChanged: (val) => setState(() => _memberLiabilityConfirmed = val ?? false),
+                    ),
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Vehicle Supports Booster Seats (US-211)'),
+                      value: _memberSupportsBooster,
+                      onChanged: (val) => setState(() => _memberSupportsBooster = val ?? true),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,

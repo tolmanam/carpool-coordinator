@@ -456,6 +456,10 @@ class MatrixService extends ChangeNotifier {
     String equipmentTags = '',
     int boosterCount = 0,
     int seatCapacity = 4,
+    String claimedByDriverId = '',
+    bool handoffPinRequired = false,
+    String handoffPin = '',
+    String transferredFromDriverId = '',
   }) async {
     final signup = Signup(
       id: 'signup_${DateTime.now().millisecondsSinceEpoch}',
@@ -467,6 +471,10 @@ class MatrixService extends ChangeNotifier {
       seatCapacity: seatCapacity,
       equipmentTags: equipmentTags,
       boosterCount: boosterCount,
+      claimedByDriverId: claimedByDriverId,
+      handoffPinRequired: handoffPinRequired,
+      handoffPin: handoffPin,
+      transferredFromDriverId: transferredFromDriverId,
     );
     await dbService.insertSignup(signup);
 
@@ -488,6 +496,111 @@ class MatrixService extends ChangeNotifier {
           'seat_capacity': seatCapacity,
           'equipment_tags': equipmentTags,
           'booster_count': boosterCount,
+          'claimed_by_driver_id': claimedByDriverId,
+          'handoff_pin_required': handoffPinRequired,
+          'transferred_from_driver_id': transferredFromDriverId,
+        }),
+      );
+    }
+    notifyListeners();
+  }
+
+  // --- Phase 8: Ride Claiming, Handoff PIN & Emergency Transfers (US-209, US-212, US-213) ---
+
+  Future<void> claimPassengerRide(
+    String scheduleId,
+    int eventTimestamp,
+    String passengerMemberId,
+    String driverMemberId,
+  ) async {
+    final signups = await dbService.getSignups(scheduleId);
+    final existing = signups.where((s) => s.eventTimestamp == eventTimestamp && s.memberId == passengerMemberId).toList();
+    if (existing.isNotEmpty) {
+      final s = existing.first;
+      final updated = Signup(
+        id: s.id,
+        scheduleId: s.scheduleId,
+        eventTimestamp: s.eventTimestamp,
+        memberId: s.memberId,
+        role: s.role,
+        status: 'claimed',
+        seatCapacity: s.seatCapacity,
+        equipmentTags: s.equipmentTags,
+        boosterCount: s.boosterCount,
+        claimedByDriverId: driverMemberId,
+        handoffPinRequired: s.handoffPinRequired,
+        handoffPin: s.handoffPin,
+        transferredFromDriverId: s.transferredFromDriverId,
+      );
+      await dbService.insertSignup(updated);
+
+      if (!_isOffline && _isLoggedIn) {
+        final txnId = 'm${DateTime.now().millisecondsSinceEpoch}';
+        final uri = Uri.parse('$_homeserver/_matrix/client/v3/rooms/$scheduleId/send/org.carpool.claim_ride/$txnId');
+        await _client.put(
+          uri,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $_accessToken',
+          },
+          body: jsonEncode({
+            'passenger_member_id': passengerMemberId,
+            'driver_member_id': driverMemberId,
+            'event_timestamp': eventTimestamp,
+          }),
+        );
+      }
+    }
+    notifyListeners();
+  }
+
+  Future<void> transferRouteSegment(
+    String scheduleId,
+    int eventTimestamp,
+    String fromDriverId,
+    String toDriverId, {
+    List<String>? passengerMemberIds,
+  }) async {
+    final signups = await dbService.getSignups(scheduleId);
+    final targetSignups = signups.where((s) =>
+        s.eventTimestamp == eventTimestamp &&
+        (passengerMemberIds != null
+            ? passengerMemberIds.contains(s.memberId)
+            : s.claimedByDriverId == fromDriverId)).toList();
+
+    for (final s in targetSignups) {
+      final updated = Signup(
+        id: s.id,
+        scheduleId: s.scheduleId,
+        eventTimestamp: s.eventTimestamp,
+        memberId: s.memberId,
+        role: s.role,
+        status: 'claimed',
+        seatCapacity: s.seatCapacity,
+        equipmentTags: s.equipmentTags,
+        boosterCount: s.boosterCount,
+        claimedByDriverId: toDriverId,
+        handoffPinRequired: s.handoffPinRequired,
+        handoffPin: s.handoffPin,
+        transferredFromDriverId: fromDriverId,
+      );
+      await dbService.insertSignup(updated);
+    }
+
+    if (!_isOffline && _isLoggedIn) {
+      final txnId = 'm${DateTime.now().millisecondsSinceEpoch}';
+      final uri = Uri.parse('$_homeserver/_matrix/client/v3/rooms/$scheduleId/send/org.carpool.transfer_route/$txnId');
+      await _client.put(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $_accessToken',
+        },
+        body: jsonEncode({
+          'from_driver_id': fromDriverId,
+          'to_driver_id': toDriverId,
+          'event_timestamp': eventTimestamp,
+          'passenger_ids': passengerMemberIds ?? targetSignups.map((s) => s.memberId).toList(),
         }),
       );
     }
