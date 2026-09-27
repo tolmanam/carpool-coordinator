@@ -91,7 +91,7 @@ flutter run -d linux
   * `services/` - Core logic services (`DatabaseService` for SQLite, `MatrixService` for Matrix state, `IcalParserService`, `RouteOptimizerService`).
   * `widgets/` - Reusable UI components (`EmptyStateWidget`).
 * `/test/` - Flutter unit and widget tests (`database_service_test.dart`, `ical_parser_service_test.dart`, `route_optimizer_service_test.dart`, `widgets_test.dart`, `user_stories_test.dart`).
-* `/docs/` - Architecture documentation, user stories, and application screenshots (`docs/screenshots/`).
+* `/docs/` - Architecture documentation, roadmap (`docs/ROADMAP.md`), user stories (`docs/USER_STORIES.md`), and application screenshots (`docs/screenshots/`).
 
 ---
 
@@ -112,6 +112,8 @@ The generated APK will be located at `build/app/outputs/flutter-apk/app-release.
 ---
 
 ## 🗺️ Roadmap & Future Enhancements
+
+For a detailed technical breakdown of deliverable features, user story mappings, and test status across all project phases, see the [Detailed Technical Roadmap (`docs/ROADMAP.md`)](docs/ROADMAP.md).
 
 - [x] **Phase 1: Flutter Rework & Local Storage**
   - Migrated core application architecture to Flutter and Dart using Provider and `sqflite`.
