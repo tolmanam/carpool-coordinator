@@ -117,6 +117,16 @@ The coding agent should implement the features in the following precise sequence
   6. **Attendance & Commute Headcount Verification (US-312)**: Add driver/coordinator check-in controls to record participant pickup and drop-off timestamps (`org.carpool.checkin`).
   7. **Leadership Handoff & Delegated Moderation (US-313)**: Manage Matrix room power levels (`m.room.power_levels`) to support co-coordinators and transfer organization space ownership without central servers.
 
+### Phase 7: Advanced Family Administration & Privacy Capabilities
+* **Goal**: Expand support for complex family edge cases, safety controls, and granular privacy.
+* **Tasks**:
+  1. **Co-Parenting & Alternate Pickup Locations**: Support day-of-week household pickup coordinates on member profiles and incorporate active custody locations into TSP route calculation (US-108).
+  2. **Location Data Minimization**: Implement ephemeral E2EE key exchanges ensuring full home address coordinates are disclosed strictly to the assigned driver during active ride windows (US-109).
+  3. **Safety Attributes & Medical Notes**: Add booster seat requirements and medical/allergy flags to child profiles, rendering them directly on the driver active route display (US-110).
+  4. **Hand-Off Verification**: Support real-time pickup/drop-off check-in confirmations and Matrix notification triggers (US-111).
+  5. **Delegated Helper Roles**: Create scoped temporary driver invitations for trusted non-family adults (e.g. babysitters) without granting family admin management access (US-112).
+  6. **Schedule Conflict Detection**: Build multi-child schedule conflict analysis in the iCal engine to alert parents of overlapping commitments (US-113).
+
 ---
 
 ## 5. Deployment & Mobile Installation Plan
