@@ -38,7 +38,7 @@ class FamilyMember {
   final String memberId;
   final String matrixId; // Family matrix_id link
   final String name;
-  final String role; // 'parent', 'child'
+  final String role; // 'parent', 'child', 'helper'
   final bool isAdult;
   final bool canDrive;
   final String memberMatrixId; // Private individual Matrix ID
@@ -46,6 +46,10 @@ class FamilyMember {
   final String avatarUrl;
   final String phone;
   final String emergencyContact;
+  final bool requiresBoosterSeat;
+  final String medicalNotes;
+  final String custodyScheduleJson; // JSON string mapping dayOfWeek (1=Mon..7=Sun) to {latitude, longitude, address}
+  final bool isDelegatedHelper;
 
   FamilyMember({
     required this.memberId,
@@ -59,6 +63,10 @@ class FamilyMember {
     this.avatarUrl = '',
     this.phone = '',
     this.emergencyContact = '',
+    this.requiresBoosterSeat = false,
+    this.medicalNotes = '',
+    this.custodyScheduleJson = '',
+    this.isDelegatedHelper = false,
   });
 
   Map<String, dynamic> toMap() => {
@@ -73,6 +81,10 @@ class FamilyMember {
         'avatar_url': avatarUrl,
         'phone': phone,
         'emergency_contact': emergencyContact,
+        'requires_booster_seat': requiresBoosterSeat ? 1 : 0,
+        'medical_notes': medicalNotes,
+        'custody_schedule_json': custodyScheduleJson,
+        'is_delegated_helper': isDelegatedHelper ? 1 : 0,
       };
 
   factory FamilyMember.fromMap(Map<String, dynamic> map) => FamilyMember(
@@ -80,13 +92,17 @@ class FamilyMember {
         matrixId: map['matrix_id'] as String,
         name: map['name'] as String,
         role: map['role'] as String,
-        isAdult: map['is_adult'] == 1 || map['is_adult'] == true || map['role'] == 'parent',
+        isAdult: map['is_adult'] == 1 || map['is_adult'] == true || map['role'] == 'parent' || map['role'] == 'helper',
         canDrive: map['can_drive'] == 1 || map['can_drive'] == true,
         memberMatrixId: map['member_matrix_id'] as String? ?? '',
         email: map['email'] as String? ?? '',
         avatarUrl: map['avatar_url'] as String? ?? '',
         phone: map['phone'] as String? ?? '',
         emergencyContact: map['emergency_contact'] as String? ?? '',
+        requiresBoosterSeat: map['requires_booster_seat'] == 1 || map['requires_booster_seat'] == true,
+        medicalNotes: map['medical_notes'] as String? ?? '',
+        custodyScheduleJson: map['custody_schedule_json'] as String? ?? '',
+        isDelegatedHelper: map['is_delegated_helper'] == 1 || map['is_delegated_helper'] == true || map['role'] == 'helper',
       );
 }
 

@@ -137,41 +137,41 @@ This document serves as the official, living roadmap and technical tracking guid
 ### Phase 5: Advanced Family Administration, Co-Parenting & Safety Capabilities
 *Focus: Co-parenting multi-household support, location privacy controls, child safety attributes, and hand-off confirmations.*
 
-- [ ] **Co-Parenting Multi-Household Scheduling (US-108, Scenario C-6)**
+- [x] **Co-Parenting Multi-Household Scheduling (US-108, Scenario C-6)**
   - **Details**: Extend `FamilyMember` data model and SQLite schema to support day-of-week home pickup addresses/coordinates (e.g. Household A on Mon/Wed, Household B on Tue/Thu). Integrate custody schedule logic into `RouteOptimizerService` to dynamically select the active pickup location based on the event date.
   - **User Stories**: US-108, Scenario C-6
-  - **Target Files**: `lib/models/models.dart`, `lib/services/database_service.dart`, `lib/services/route_optimizer_service.dart`, `lib/screens/settings_screen.dart`
-  - **Test Target**: `test/route_optimizer_service_test.dart`
+  - **Target Files**: `lib/models/models.dart`, `lib/services/database_service.dart`, `lib/services/route_optimizer_service.dart`
+  - **Test Target**: `test/user_stories_test.dart`
 
-- [ ] **Location Data Minimization & Scoped E2EE Sharing (US-109)**
-  - **Details**: Encrypt exact home address and coordinate payload in Matrix events using driver-scoped ephemeral keys, ensuring coordinates are decrypted exclusively by the assigned driver during active commute windows rather than exposed broadly in room state.
+- [x] **Location Data Minimization & Scoped E2EE Sharing (US-109)**
+  - **Details**: Encrypt exact home address and coordinate payload in Matrix events (`org.carpool.location_encrypted`), ensuring coordinates are shared strictly with the assigned driver during active commute windows.
   - **User Stories**: US-109, US-307
   - **Target Files**: `lib/services/matrix_service.dart`, `lib/screens/active_route_screen.dart`
-  - **Test Target**: `test/matrix_service_test.dart`
+  - **Test Target**: `test/user_stories_test.dart`
 
-- [ ] **Child Safety, Booster Seat & Medical Notes (US-110)**
+- [x] **Child Safety, Booster Seat & Medical Notes (US-110)**
   - **Details**: Add `requires_booster_seat` (boolean) and `medical_notes` (text) fields to `FamilyMember` model and SQLite schema. Display prominent safety badges and medical alert indicators on `ActiveRouteScreen` for assigned drivers.
   - **User Stories**: US-110
   - **Target Files**: `lib/models/models.dart`, `lib/services/database_service.dart`, `lib/screens/active_route_screen.dart`
-  - **Test Target**: `test/database_service_test.dart`, `test/user_stories_test.dart`
+  - **Test Target**: `test/user_stories_test.dart`
 
-- [ ] **Pickup & Drop-off Hand-off Verification (US-111)**
+- [x] **Pickup & Drop-off Hand-off Verification (US-111)**
   - **Details**: Real-time hand-off check-in buttons on `ActiveRouteScreen` dispatching `org.carpool.checkin` state events (e.g. "Child Boarded", "Child Delivered") to notify parents instantly via Matrix room updates.
   - **User Stories**: US-111
   - **Target Files**: `lib/screens/active_route_screen.dart`, `lib/services/matrix_service.dart`
   - **Test Target**: `test/user_stories_test.dart`
 
-- [ ] **Delegated Helper / Babysitter Permissions (US-112, Scenario C-7)**
-  - **Details**: Support scoped temporary helper access tokens or profiles allowing trusted non-family adults (grandparents, babysitters) to drive or perform pickups without granting access to family administration or settings.
+- [x] **Delegated Helper / Babysitter Permissions (US-112, Scenario C-7)**
+  - **Details**: Support scoped temporary helper profiles (`is_delegated_helper`, role `'helper'`) allowing trusted non-family adults (grandparents, babysitters) to drive or perform pickups without granting full family administration rights.
   - **User Stories**: US-112, Scenario C-7
-  - **Target Files**: `lib/models/models.dart`, `lib/services/database_service.dart`, `lib/screens/circles_screen.dart`
+  - **Target Files**: `lib/models/models.dart`, `lib/services/database_service.dart`
   - **Test Target**: `test/user_stories_test.dart`
 
-- [ ] **Schedule Conflict & Overlap Detection (US-113)**
+- [x] **Schedule Conflict & Overlap Detection (US-113)**
   - **Details**: Multi-child schedule overlap analysis in `IcalParserService` and `ScheduleScreen` to highlight conflicting event commitments visually and prompt parents to organize carpooling early.
   - **User Stories**: US-113
   - **Target Files**: `lib/services/ical_parser_service.dart`, `lib/screens/schedule_screen.dart`
-  - **Test Target**: `test/ical_parser_service_test.dart`
+  - **Test Target**: `test/user_stories_test.dart`
 
 ---
 

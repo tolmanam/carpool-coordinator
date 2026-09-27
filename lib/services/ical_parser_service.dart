@@ -1,6 +1,37 @@
 import '../models/models.dart';
 
+class ScheduleConflict {
+  final LocalIcalEvent eventA;
+  final LocalIcalEvent eventB;
+
+  ScheduleConflict({required this.eventA, required this.eventB});
+}
+
 class IcalParserService {
+  /// Detects overlapping schedule events for multi-child or multi-circle coordination.
+  static List<ScheduleConflict> detectScheduleConflicts(List<LocalIcalEvent> events) {
+    final List<ScheduleConflict> conflicts = [];
+    final sorted = List<LocalIcalEvent>.from(events)
+      ..sort((a, b) => a.startTime.compareTo(b.startTime));
+
+    for (var i = 0; i < sorted.length; i++) {
+      for (var j = i + 1; j < sorted.length; j++) {
+        final a = sorted[i];
+        final b = sorted[j];
+
+        // If event b starts after event a ends, no further overlaps possible for event a
+        if (b.startTime >= a.endTime) break;
+
+        // Otherwise there is an overlap
+        if (a.startTime < b.endTime && b.startTime < a.endTime) {
+          conflicts.add(ScheduleConflict(eventA: a, eventB: b));
+        }
+      }
+    }
+
+    return conflicts;
+  }
+
   static List<LocalIcalEvent> parseIcalContent(String icalString, String scheduleId) {
     final List<LocalIcalEvent> events = [];
     final lines = icalString.split(RegExp(r'\r?\n'));

@@ -60,6 +60,10 @@ class DatabaseService extends ChangeNotifier {
             avatar_url TEXT,
             phone TEXT,
             emergency_contact TEXT,
+            requires_booster_seat INTEGER DEFAULT 0,
+            medical_notes TEXT,
+            custody_schedule_json TEXT,
+            is_delegated_helper INTEGER DEFAULT 0,
             FOREIGN KEY (matrix_id) REFERENCES cached_families (matrix_id) ON DELETE CASCADE
           )
         ''');

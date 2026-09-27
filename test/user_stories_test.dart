@@ -5,6 +5,8 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart' as http_testing;
 import 'package:carpool_coordinator/services/database_service.dart';
 import 'package:carpool_coordinator/services/matrix_service.dart';
+import 'package:carpool_coordinator/services/route_optimizer_service.dart';
+import 'package:carpool_coordinator/services/ical_parser_service.dart';
 import 'package:carpool_coordinator/models/models.dart';
 
 void main() {
@@ -250,6 +252,129 @@ void main() {
       await dbService.setSetting('theme_mode', 'dark');
       final val = await dbService.getSetting('theme_mode');
       expect(val, equals('dark'));
+    });
+
+    test('US-108 & Scenario C-6: Co-Parenting Custody Schedule & Route Location Resolution', () async {
+      final family = Family(
+        matrixId: '@parent:matrix.org',
+        familyName: 'Shared Household',
+        latitude: 34.0000,
+        longitude: -118.0000,
+        addressText: '100 Household A St',
+        lastUpdated: DateTime.now().millisecondsSinceEpoch,
+      );
+
+      // Child has Monday (day 1) at Household B coordinates
+      final child = FamilyMember(
+        memberId: 'child_custody_1',
+        matrixId: '@parent:matrix.org',
+        name: 'Jordan',
+        role: 'child',
+        custodyScheduleJson: '{"1": {"latitude": 34.1000, "longitude": -118.1000, "address": "200 Household B St"}}',
+      );
+
+      await dbService.insertFamily(family);
+      await dbService.insertFamilyMember(child);
+
+      // Monday timestamp: Oct 16, 2023 (Monday)
+      final mondayTs = DateTime.utc(2023, 10, 16, 16, 0).millisecondsSinceEpoch;
+      final mondayLoc = RouteOptimizerService.resolveRiderLocation(
+        member: child,
+        family: family,
+        eventTimestamp: mondayTs,
+      );
+
+      expect(mondayLoc.latitude, equals(34.1000));
+      expect(mondayLoc.longitude, equals(-118.1000));
+
+      // Tuesday timestamp: Oct 17, 2023 (Tuesday) -> Default household A
+      final tuesdayTs = DateTime.utc(2023, 10, 17, 16, 0).millisecondsSinceEpoch;
+      final tuesdayLoc = RouteOptimizerService.resolveRiderLocation(
+        member: child,
+        family: family,
+        eventTimestamp: tuesdayTs,
+      );
+
+      expect(tuesdayLoc.latitude, equals(34.0000));
+      expect(tuesdayLoc.longitude, equals(-118.0000));
+    });
+
+    test('US-109 & US-111: Encrypted Location Dispatch & Handoff Verification Check-ins', () async {
+      matrixService.toggleOfflineMode(true);
+      await matrixService.login('driver_bob', 'password');
+
+      final scheduleId = 'sched_handoff';
+
+      // US-109: Send scoped encrypted location update
+      await matrixService.sendEncryptedLocation(scheduleId, 34.05, -118.25, '@driver_bob:matrix.org', []);
+
+      // US-111: Send handoff check-in event
+      await matrixService.sendCheckinEvent(scheduleId, 'child_1', 'boarded', notes: 'Child boarded vehicle');
+
+      final pending = await dbService.getPendingEvents();
+      expect(pending.length, equals(2));
+      expect(pending.any((e) => e['event_type'] == 'location_update'), isTrue);
+      expect(pending.any((e) => e['event_type'] == 'checkin'), isTrue);
+    });
+
+    test('US-110 & US-112: Child Safety Attributes & Delegated Helper Profile', () async {
+      final childSafety = FamilyMember(
+        memberId: 'child_safety_1',
+        matrixId: '@parent:matrix.org',
+        name: 'Emma',
+        role: 'child',
+        requiresBoosterSeat: true,
+        medicalNotes: 'Severe peanut allergy. Emergency EpiPen in backpack.',
+      );
+
+      final helper = FamilyMember(
+        memberId: 'helper_nanny',
+        matrixId: '@parent:matrix.org',
+        name: 'Grandma Mary',
+        role: 'helper',
+        isAdult: true,
+        canDrive: true,
+        isDelegatedHelper: true,
+      );
+
+      await dbService.insertFamilyMember(childSafety);
+      await dbService.insertFamilyMember(helper);
+
+      final members = await dbService.getFamilyMembers('@parent:matrix.org');
+
+      final savedChild = members.firstWhere((m) => m.memberId == 'child_safety_1');
+      expect(savedChild.requiresBoosterSeat, isTrue);
+      expect(savedChild.medicalNotes, contains('peanut allergy'));
+
+      final savedHelper = members.firstWhere((m) => m.memberId == 'helper_nanny');
+      expect(savedHelper.isDelegatedHelper, isTrue);
+      expect(savedHelper.canDrive, isTrue);
+      expect(savedHelper.role, equals('helper'));
+    });
+
+    test('US-113: Schedule Conflict & Overlap Detection', () async {
+      final now = DateTime.now().millisecondsSinceEpoch;
+
+      final event1 = LocalIcalEvent(
+        id: 'ev_1',
+        scheduleId: 'sched_soccer',
+        title: 'Soccer Practice',
+        startTime: now,
+        endTime: now + (3600 * 1000), // 1 hr duration
+      );
+
+      final event2 = LocalIcalEvent(
+        id: 'ev_2',
+        scheduleId: 'sched_gymnastics',
+        title: 'Gymnastics Meet',
+        startTime: now + (1800 * 1000), // Overlaps halfway through event 1
+        endTime: now + (5400 * 1000),
+      );
+
+      final conflicts = IcalParserService.detectScheduleConflicts([event1, event2]);
+      expect(conflicts.length, equals(1));
+      expect(conflicts.first.eventA.id, equals('ev_1'));
+      expect(conflicts.first.eventB.id, equals('ev_2'));
     });
   });
 }

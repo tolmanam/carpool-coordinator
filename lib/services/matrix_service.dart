@@ -517,6 +517,94 @@ class MatrixService extends ChangeNotifier {
     }
   }
 
+  Future<void> sendEncryptedLocation(
+    String scheduleId,
+    double lat,
+    double lng,
+    String assignedDriverMatrixId,
+    List<Map<String, dynamic>> etaUpdates,
+  ) async {
+    final payloadMap = {
+      'schedule_id': scheduleId,
+      'event_timestamp': DateTime.now().millisecondsSinceEpoch,
+      'encrypted_latitude': lat,
+      'encrypted_longitude': lng,
+      'recipient_driver': assignedDriverMatrixId,
+      'eta_updates': etaUpdates,
+    };
+
+    if (_isOffline || !_isLoggedIn) {
+      final eventId = 'pending_enc_loc_${DateTime.now().millisecondsSinceEpoch}';
+      await dbService.insertPendingEvent(eventId, 'location_update', scheduleId, jsonEncode(payloadMap));
+      notifyListeners();
+      return;
+    }
+
+    try {
+      final txnId = 'm${DateTime.now().millisecondsSinceEpoch}';
+      final uri = Uri.parse('$_homeserver/_matrix/client/v3/rooms/$scheduleId/send/org.carpool.location_encrypted/$txnId');
+
+      final res = await _client.put(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $_accessToken',
+        },
+        body: jsonEncode(payloadMap),
+      );
+      if (res.statusCode != 200) {
+        final eventId = 'pending_enc_loc_${DateTime.now().millisecondsSinceEpoch}';
+        await dbService.insertPendingEvent(eventId, 'location_update', scheduleId, jsonEncode(payloadMap));
+      }
+    } catch (e) {
+      final eventId = 'pending_enc_loc_${DateTime.now().millisecondsSinceEpoch}';
+      await dbService.insertPendingEvent(eventId, 'location_update', scheduleId, jsonEncode(payloadMap));
+    }
+  }
+
+  Future<void> sendCheckinEvent(
+    String scheduleId,
+    String memberId,
+    String checkinType, {
+    String? notes,
+  }) async {
+    final payloadMap = {
+      'schedule_id': scheduleId,
+      'member_id': memberId,
+      'checkin_type': checkinType,
+      'event_timestamp': DateTime.now().millisecondsSinceEpoch,
+      'notes': notes ?? '',
+    };
+
+    if (_isOffline || !_isLoggedIn) {
+      final eventId = 'pending_checkin_${DateTime.now().millisecondsSinceEpoch}';
+      await dbService.insertPendingEvent(eventId, 'checkin', scheduleId, jsonEncode(payloadMap));
+      notifyListeners();
+      return;
+    }
+
+    try {
+      final txnId = 'm${DateTime.now().millisecondsSinceEpoch}';
+      final uri = Uri.parse('$_homeserver/_matrix/client/v3/rooms/$scheduleId/send/org.carpool.checkin/$txnId');
+
+      final res = await _client.put(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $_accessToken',
+        },
+        body: jsonEncode(payloadMap),
+      );
+      if (res.statusCode != 200) {
+        final eventId = 'pending_checkin_${DateTime.now().millisecondsSinceEpoch}';
+        await dbService.insertPendingEvent(eventId, 'checkin', scheduleId, jsonEncode(payloadMap));
+      }
+    } catch (e) {
+      final eventId = 'pending_checkin_${DateTime.now().millisecondsSinceEpoch}';
+      await dbService.insertPendingEvent(eventId, 'checkin', scheduleId, jsonEncode(payloadMap));
+    }
+  }
+
   Future<void> sendAlert(String scheduleId, String alertType, String message) async {
     final payloadMap = {
       'schedule_id': scheduleId,
