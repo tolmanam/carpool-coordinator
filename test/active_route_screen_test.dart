@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:provider/provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
@@ -18,7 +20,10 @@ class _FakeMatrixService extends MatrixService {
   _FakeMatrixService({
     required DatabaseService dbService,
     this.fakeUsername = '@driver:matrix.org',
-  }) : super(dbService: dbService);
+  }) : super(
+          dbService: dbService,
+          client: MockClient((request) async => http.Response('{}', 200)),
+        );
 
   @override
   String get username => fakeUsername;
@@ -153,14 +158,26 @@ Widget _buildTestApp(DatabaseService db, _FakeMatrixService matrix) {
   );
 }
 
+Future<void> _pumpScreen(WidgetTester tester) async {
+  await tester.pump();
+  for (int i = 0; i < 5; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Tests — Task 3: data resolution
 // ---------------------------------------------------------------------------
 
 void main() {
   setUpAll(() {
+    TestWidgetsFlutterBinding.ensureInitialized();
     sqfliteFfiInit();
-    databaseFactory = databaseFactoryFfi;
+    databaseFactory = databaseFactoryFfiNoIsolate;
+  });
+
+  setUp(() {
+    databaseFactory = databaseFactoryFfiNoIsolate;
   });
 
   group('ActiveRouteScreen — Task 3: data resolution', () {
@@ -169,7 +186,7 @@ void main() {
       final matrix = _FakeMatrixService(dbService: db);
       await tester.pumpWidget(_buildTestApp(db, matrix));
       // Let async loading complete
-      await tester.pumpAndSettle(const Duration(seconds: 2));
+      await _pumpScreen(tester);
 
       expect(find.text('No riders for this carpool'), findsOneWidget);
     });
@@ -178,7 +195,7 @@ void main() {
       final db = await _buildDb(driverCoordsZero: true);
       final matrix = _FakeMatrixService(dbService: db);
       await tester.pumpWidget(_buildTestApp(db, matrix));
-      await tester.pumpAndSettle(const Duration(seconds: 2));
+      await _pumpScreen(tester);
 
       expect(find.textContaining('home address is not set'), findsOneWidget);
     });
@@ -215,7 +232,7 @@ void main() {
 
       final matrix = _FakeMatrixService(dbService: db);
       await tester.pumpWidget(_buildTestApp(db, matrix));
-      await tester.pumpAndSettle(const Duration(seconds: 2));
+      await _pumpScreen(tester);
 
       // 2 riders → 4 waypoints: start + 2 pickups + destination
       // Expect pickup names present
@@ -235,16 +252,16 @@ void main() {
       final db = await _buildDb(riderPinRequired: true, riderPin: '5678');
       final matrix = _FakeMatrixService(dbService: db);
       await tester.pumpWidget(_buildTestApp(db, matrix));
-      await tester.pumpAndSettle(const Duration(seconds: 2));
+      await _pumpScreen(tester);
 
       // Tap 'Child Boarded' button
       await tester.tap(find.text('Child Boarded').first);
-      await tester.pumpAndSettle();
+      await _pumpScreen(tester);
 
       // Enter wrong PIN
       await tester.enterText(find.byType(TextField).last, '0000');
       await tester.tap(find.text('Verify PIN'));
-      await tester.pumpAndSettle();
+      await _pumpScreen(tester);
 
       expect(find.textContaining('Invalid PIN'), findsOneWidget);
       expect(matrix.checkinLog, isEmpty);
@@ -254,14 +271,14 @@ void main() {
       final db = await _buildDb(riderPinRequired: true, riderPin: '5678');
       final matrix = _FakeMatrixService(dbService: db);
       await tester.pumpWidget(_buildTestApp(db, matrix));
-      await tester.pumpAndSettle(const Duration(seconds: 2));
+      await _pumpScreen(tester);
 
       await tester.tap(find.text('Child Boarded').first);
-      await tester.pumpAndSettle();
+      await _pumpScreen(tester);
 
       await tester.enterText(find.byType(TextField).last, '5678');
       await tester.tap(find.text('Verify PIN'));
-      await tester.pumpAndSettle();
+      await _pumpScreen(tester);
 
       expect(matrix.checkinLog.isNotEmpty, isTrue);
       expect(find.text('Pickup Recorded'), findsOneWidget);
@@ -271,10 +288,10 @@ void main() {
       final db = await _buildDb(riderPinRequired: false);
       final matrix = _FakeMatrixService(dbService: db);
       await tester.pumpWidget(_buildTestApp(db, matrix));
-      await tester.pumpAndSettle(const Duration(seconds: 2));
+      await _pumpScreen(tester);
 
       await tester.tap(find.text('Child Boarded').first);
-      await tester.pumpAndSettle();
+      await _pumpScreen(tester);
 
       // No PIN dialog should appear
       expect(find.text('Verify PIN'), findsNothing);
