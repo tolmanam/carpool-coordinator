@@ -275,6 +275,16 @@ class DatabaseService extends ChangeNotifier {
     return res.map((m) => Signup.fromMap(m)).toList();
   }
 
+  Future<List<Signup>> getSignupsByEvent(String scheduleId, int eventTimestamp) async {
+    final res = await db.query(
+      'cached_signups',
+      where: 'schedule_id = ? AND event_timestamp = ?',
+      whereArgs: [scheduleId, eventTimestamp],
+      orderBy: 'role DESC',
+    );
+    return res.map((m) => Signup.fromMap(m)).toList();
+  }
+
   Future<void> insertSignup(Signup signup) async {
     await db.insert(
       'cached_signups',

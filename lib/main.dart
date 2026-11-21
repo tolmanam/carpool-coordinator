@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'services/database_service.dart';
 import 'services/matrix_service.dart';
+import 'services/background_streaming_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_tab_screen.dart';
 
@@ -15,11 +16,14 @@ void main() async {
   final matrixService = MatrixService(dbService: dbService);
   await matrixService.loadSession();
 
+  final backgroundStreamingService = BackgroundStreamingService(matrixService: matrixService);
+
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider<DatabaseService>.value(value: dbService),
         ChangeNotifierProvider<MatrixService>.value(value: matrixService),
+        ChangeNotifierProvider<BackgroundStreamingService>.value(value: backgroundStreamingService),
       ],
       child: const CarpoolApp(),
     ),

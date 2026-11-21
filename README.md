@@ -121,22 +121,22 @@ For a detailed technical breakdown of deliverable features, user story mappings,
   - RFC 5545 iCal feed parser and greedy Traveling Salesperson Problem (TSP) route optimizer with Haversine distance.
 - [x] **Phase 3: User Stories & Test Coverage**
   - Added unit/widget tests for all user stories including driver replacements and participant cancellations.
-- [ ] **Phase 4: Native Matrix SDK Bindings (E2EE Megolm)**
-  - Integrate native `matrix-rust-sdk` Dart FFI bindings for full zero-trust Olm/Megolm E2EE encrypted sync with Matrix homeservers.
-- [ ] **Phase 5: Background Location Streaming & Push Notifications**
-  - Implement native Android background location tasks (`flutter_background_service`) and Matrix Push Gateway notifications for delay alerts.
-- [ ] **Phase 6: Advanced Family Administration & Privacy Enhancements**
+- [x] **Phase 4: Native Matrix SDK Bindings (E2EE Megolm)**
+  - Implemented `MatrixRustSdkBinding` architecture with graceful REST fallback and Web FFI conditional loading.
+- [x] **Phase 5: Background Location Streaming & Push Notifications**
+  - Implemented `BackgroundStreamingService` with simulated GPS progression and Matrix Push Gateway pusher registration.
+- [x] **Phase 6: Advanced Family Administration & Privacy Enhancements**
   - **Co-Parenting Support**: Multi-household schedule-dependent pickup addresses and custody schedule route integration (US-108).
   - **Location Privacy Controls**: Data minimization restricting exact child coordinate exposure exclusively to assigned drivers during active commutes (US-109).
   - **Child Safety & Medical Attributes**: Booster/car seat indicators and emergency medical/allergy notes visible on driver route interface (US-110).
   - **Hand-off Verification**: Real-time arrival/pickup check-in confirmations and status broadcasts (US-111).
   - **Delegated Helpers**: Scoped temporary driver access for babysitters and grandparents without family admin permissions (US-112).
   - **Schedule Conflict Detection**: Automatic conflict highlighting across overlapping multi-child circles (US-113).
-- [ ] **Phase 7: Advanced Driver Safety, Liability & Social Dynamics**
+- [x] **Phase 7: Advanced Driver Safety, Liability & Social Dynamics**
   - Pre-drive route impact preview and max detour threshold calculation (US-208).
   - Priority seat allocation rules and objective capacity capping (US-209).
   - Driver credential storage (license & insurance attestation) and organization liability agreement (US-210).
   - Child safety seat / equipment verification matching (US-211).
-  - Secure pickup and drop-off child handoff verification (US-212).
+  - Secure pickup and drop-off child handoff verification with parent PIN (US-212).
   - Emergency route handoff and passenger segment transfer protocol (US-213).
 

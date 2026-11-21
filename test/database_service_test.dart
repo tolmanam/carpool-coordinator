@@ -104,6 +104,18 @@ void main() {
       expect(msgs.first.content, equals('Hi everyone!'));
     });
 
+    test('getSignupsByEvent returns only signups for matching scheduleId and eventTimestamp', () async {
+      final ts1 = 1700000000000;
+      final ts2 = 1700000001000;
+      await dbService.insertSignup(Signup(id: 'a', scheduleId: 'sched1', eventTimestamp: ts1, memberId: 'm1', role: 'driver', status: 'scheduled'));
+      await dbService.insertSignup(Signup(id: 'b', scheduleId: 'sched1', eventTimestamp: ts2, memberId: 'm2', role: 'rider', status: 'scheduled'));
+      await dbService.insertSignup(Signup(id: 'c', scheduleId: 'sched2', eventTimestamp: ts1, memberId: 'm3', role: 'rider', status: 'scheduled'));
+
+      final results = await dbService.getSignupsByEvent('sched1', ts1);
+      expect(results.length, equals(1));
+      expect(results.first.memberId, equals('m1'));
+    });
+
     test('Insert and retrieve schedule and signups', () async {
       final schedule = Schedule(
         scheduleId: 'sched_soccer',
